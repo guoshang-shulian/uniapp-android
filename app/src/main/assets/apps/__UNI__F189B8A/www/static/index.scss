@@ -1,0 +1,185 @@
+@for $i from 1 to 60 {
+	.text_#{$i} {
+		font-size: #{$i}rpx;
+	}
+}
+/* 小号 */
+#page_font_size_min {
+	@for $i from 1 to 60 {
+		.text_#{$i} {
+			font-size: calc(#{$i}rpx - 2rpx);
+		}
+	}
+}
+/* 标准 */
+#page_font_size {
+	@for $i from 1 to 60 {
+		.text_#{$i} {
+			font-size: #{$i}rpx;
+		}
+	}
+}
+
+/* 大 */
+#page_font_size_max {
+	$font_size: 6rpx;
+	@for $i from 1 to 60 {
+		.text_#{$i} {
+			font-size: calc(#{$i}rpx + #{$font_size});
+		}
+	}
+}
+
+/* 偏大 */
+#page_font_size_max_plus {
+	$font_size: 10rpx;
+	@for $i from 1 to 60 {
+		.text_#{$i} {
+			font-size: calc(#{$i}rpx + #{$font_size});
+		}
+	}
+}
+/* 特大 */
+#page_font_size_max_plus_pro {
+	$font_size: 16rpx;
+	@for $i from 1 to 60 {
+		.text_#{$i} {
+			font-size: calc(#{$i}rpx + #{$font_size});
+		}
+	}
+}
+
+.flex_r {
+	display: flex;
+	flex-direction: row;
+}
+
+.flex_c {
+	display: flex;
+	flex-direction: column;
+}
+.flex1 {
+	flex: 1;
+}
+.fj_b {
+	justify-content: space-between;
+}
+
+.fj_a {
+	justify-content: space-around;
+}
+
+.fj_c {
+	justify-content: center;
+}
+
+.fa_c {
+	align-items: center;
+}
+
+.flex_c_c {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+}
+
+.icon_ {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: center;
+}
+
+.z_index2 {
+	position: relative;
+	z-index: 2;
+}
+
+.img {
+	width: 100%;
+	height: 100%;
+}
+
+.rotate_45 {
+	transform: rotate(45deg);
+}
+
+.rotate_90 {
+	transform: rotate(90deg);
+}
+
+.rotate_180 {
+	transform: rotate(180deg);
+}
+
+.text-indent {
+	text-indent: 2em;
+	text-align: justify;
+}
+
+/* 文本css */
+.nowrap_ {
+	text-overflow: ellipsis;
+	/* #ifndef APP-PLUS-NVUE*/
+	overflow: hidden;
+	white-space: nowrap;
+	/*  #endif  */
+
+	/*#ifdef APP-PLUS-NVUE*/
+	lines: 1;
+	/*  #endif  */
+}
+
+.ellipsis_2 {
+	text-overflow: ellipsis;
+	/* #ifndef APP-PLUS-NVUE*/
+	overflow: hidden;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	/*  #endif  */
+
+	/* #ifdef  APP-PLUS-NVUE*/
+	lines: 2;
+	/*  #endif  */
+}
+
+.hover_class::after {
+	position: absolute;
+	z-index: 2;
+	content: '';
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: rgba(0, 0, 0, 0.1);
+}
+
+.size_white {
+	color: #fff;
+}
+
+.color_ {
+	color: #b5b5b6;
+}
+
+.color___ {
+	color: #7fade8;
+}
+
+.color__ {
+	color: #7e7e7e;
+}
+
+.color_4a {
+	color: #4a4a4a;
+}
+
+.color_rot {
+	color: #ff0000;
+}
+
+.bold_ {
+	font-weight: bold;
+}
