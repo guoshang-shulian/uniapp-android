@@ -250,10 +250,10 @@ public class ZegoUIKitPrebuiltLiveAudioRoomFragment extends Fragment {
                 }
 
                 // Clean up and close the screen safely
-                leaveRoom();
-                if (isAdded() && getActivity() != null) {
-                    getActivity().finish();
-                }
+               // leaveRoom();
+               // if (isAdded() && getActivity() != null) {
+               //     getActivity().finish();
+               // }
             }
         };
         dryRoomCheckHandler.postDelayed(dryRoomTimeoutRunnable, 5000);
