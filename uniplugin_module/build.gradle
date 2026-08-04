@@ -44,9 +44,9 @@ dependencies {
     implementation 'com.facebook.fresco:fresco:1.13.0'
 
 //    implementation 'com.google.code.gson:gson:2.11.0'
-    implementation project(':prebuilt_liveaudioroom')
-    implementation project(':prebuilt_livestreaming')
-    implementation project(':prebuilt_call')
+    //implementation project(':prebuilt_liveaudioroom')
+    //implementation project(':prebuilt_livestreaming')
+    //implementation project(':prebuilt_call')
     implementation project(':zimkit')
 //    implementation project(':uikit')
 
