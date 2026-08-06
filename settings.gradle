@@ -1,11 +1,13 @@
 
+
 include ':app'
 include ':uniplugin_module'
 include ':uniplugin_component'
 //include ':uniplugin_richalert'
 include ':uts-toast'
-include 'prebuilt_liveaudioroom'
 include 'zimkit'
-include 'prebuilt_livestreaming'
-include 'prebuilt_call'
-include 'uikit'
+include(":voiceroomkit-ui-base")
+include(":voiceroomkit-ui")
+include(":voiceroomkit")
+include(":entertainment:entertainment-common")
+include(":ordersong")

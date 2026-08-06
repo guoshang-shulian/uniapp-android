@@ -19,10 +19,10 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentTransaction;
 
 import com.google.gson.JsonObject;
-import com.zegocloud.uikit.prebuilt.liveaudioroom.ZegoUIKitPrebuiltLiveAudioRoomConfig;
-import com.zegocloud.uikit.prebuilt.liveaudioroom.ZegoUIKitPrebuiltLiveAudioRoomFragment;
-import com.zegocloud.uikit.prebuilt.liveaudioroom.core.ZegoMenuBarButtonName;
-import com.zegocloud.uikit.prebuilt.liveaudioroom.internal.service.RoomLeaveListener;
+//import com.zegocloud.uikit.prebuilt.liveaudioroom.ZegoUIKitPrebuiltLiveAudioRoomConfig;
+//import com.zegocloud.uikit.prebuilt.liveaudioroom.ZegoUIKitPrebuiltLiveAudioRoomFragment;
+//import com.zegocloud.uikit.prebuilt.liveaudioroom.core.ZegoMenuBarButtonName;
+//import com.zegocloud.uikit.prebuilt.liveaudioroom.internal.service.RoomLeaveListener;
 
 import io.dcloud.uniplugin.TestModule;
 import uni.dcloud.io.uniplugin_module.R;
@@ -43,7 +43,7 @@ public class AudioRoomActivity extends AppCompatActivity {
     private ImageView ivLogo;
 
 
-    private  ZegoUIKitPrebuiltLiveAudioRoomFragment fragment;
+//    private  ZegoUIKitPrebuiltLiveAudioRoomFragment fragment;
     private static LastRoomLeave roomLeaveListener;
 
     public static void setRoomLeaveListener(LastRoomLeave listener) {
@@ -57,13 +57,13 @@ public class AudioRoomActivity extends AppCompatActivity {
         if(!isMicrophoneGranted()){
             return;
         }
-        if (fragment != null) {
-            getSupportFragmentManager()
-                    .beginTransaction()
-                    .hide(fragment)
-                    .commitNow(); // Apply immediately
-           // ivLogo.setVisibility(View.VISIBLE);
-        }
+//        if (fragment != null) {
+//            getSupportFragmentManager()
+//                    .beginTransaction()
+//                    .hide(fragment)
+//                    .commitNow(); // Apply immediately
+//           // ivLogo.setVisibility(View.VISIBLE);
+//        }
 
         if(roomLeaveListener != null){
             roomLeaveListener.onRoomLeft();
@@ -107,13 +107,13 @@ public class AudioRoomActivity extends AppCompatActivity {
         }
 //        if(getLifecycle().getCurrentState() == lif)
 
-        if (!isInPictureInPictureMode && fragment != null) {
-            getSupportFragmentManager()
-                    .beginTransaction()
-                    .show(fragment)
-                    .commitAllowingStateLoss();
-            ivLogo.setVisibility(View.GONE);
-        }
+//        if (!isInPictureInPictureMode && fragment != null) {
+//            getSupportFragmentManager()
+//                    .beginTransaction()
+//                    .show(fragment)
+//                    .commitAllowingStateLoss();
+//            ivLogo.setVisibility(View.GONE);
+//        }
     }
 
     public boolean isMicrophoneGranted() {
@@ -163,27 +163,27 @@ public class AudioRoomActivity extends AppCompatActivity {
         } else {
             Log.d("AudioRoom", "ivLogo loaded successfully ✅");
         }
-
-        ZegoUIKitPrebuiltLiveAudioRoomConfig config =
-                ZegoUIKitPrebuiltLiveAudioRoomConfig.audience();
-        if(isHost) {
-            config = ZegoUIKitPrebuiltLiveAudioRoomConfig.host();
-        }
-
-        config.bottomMenuBarConfig.hostButtons.add(ZegoMenuBarButtonName.SWITCH_AUDIO_OUTPUT_BUTTON);
-        fragment  =
-                ZegoUIKitPrebuiltLiveAudioRoomFragment.newInstance(
-                        APP_ID,
-                        APP_SIGN,
-                        userID,
-                        userName,
-                        roomID,
-                        config
-                );
-
-        getSupportFragmentManager()
-                .beginTransaction()
-                .replace(R.id.fragment_container, fragment)
-                .commit();
+//
+//        ZegoUIKitPrebuiltLiveAudioRoomConfig config =
+//                ZegoUIKitPrebuiltLiveAudioRoomConfig.audience();
+//        if(isHost) {
+//            config = ZegoUIKitPrebuiltLiveAudioRoomConfig.host();
+//        }
+//
+//        config.bottomMenuBarConfig.hostButtons.add(ZegoMenuBarButtonName.SWITCH_AUDIO_OUTPUT_BUTTON);
+//        fragment  =
+//                ZegoUIKitPrebuiltLiveAudioRoomFragment.newInstance(
+//                        APP_ID,
+//                        APP_SIGN,
+//                        userID,
+//                        userName,
+//                        roomID,
+//                        config
+//                );
+//
+//        getSupportFragmentManager()
+//                .beginTransaction()
+//                .replace(R.id.fragment_container, fragment)
+//                .commit();
     }
 }

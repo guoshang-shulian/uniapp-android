@@ -1,5 +1,7 @@
 package io.dcloud.uniplugin;
 
+import static io.dcloud.uniplugin.AppConfig.BASE_URL;
+
 import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
@@ -11,10 +13,21 @@ import android.provider.Settings;
 import android.util.Log;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.alibaba.fastjson.JSONObject;
+import com.netease.yunxin.kit.alog.ALog;
+import com.netease.yunxin.kit.common.ui.utils.ToastX;
+import com.netease.yunxin.kit.entertainment.common.RoomConstants;
+import com.netease.yunxin.kit.voiceroomkit.ui.AppUtils;
+import com.netease.yunxin.kit.voiceroomkit.ui.LoginUtil;
+import com.netease.yunxin.kit.entertainment.common.http.ECHttpService;
+import com.netease.yunxin.kit.entertainment.common.model.ECModelResponse;
+import com.netease.yunxin.kit.entertainment.common.model.NemoAccount;
+import com.netease.yunxin.kit.voiceroomkit.ui.activity.VoiceRoomCreateActivity;
+import com.netease.yunxin.kit.voiceroomkit.ui.activity.VoiceRoomListActivity;
 import com.zegocloud.uikit.plugin.signaling.ZegoSignalingPlugin;
 //import com.zegocloud.uikit.prebuilt.liveaudioroom.internal.service.LiveAudioRoomManager;
 import com.zegocloud.zimkit.common.ZIMKitRouter;
@@ -47,6 +60,8 @@ import io.dcloud.uniplugin.activity.AudioRoomActivity;
 import io.dcloud.uniplugin.activity.ConversationActivity;
 import io.dcloud.uniplugin.activity.LiveActivity;
 import io.dcloud.uniplugin.activity.NativePageActivity;
+import retrofit2.Call;
+import retrofit2.Callback;
 
 
 public class TestModule extends UniModule {
@@ -59,36 +74,102 @@ public class TestModule extends UniModule {
     String userName;
     String avatar;
 
+    int logged = 0;
+
+
+    public void neteaseLogin(){
+        System.out.println("netease-login info");
+        createAccount(
+                2,
+                new Callback<ECModelResponse<NemoAccount>>() {
+                    @Override
+                    public void onResponse(
+                            @NonNull Call<ECModelResponse<NemoAccount>> call,
+                            @NonNull retrofit2.Response<ECModelResponse<NemoAccount>> response) {
+                        if (response.body() != null) {
+                            NemoAccount nemoAccount = response.body().data;
+                            if (nemoAccount != null) {
+                                login(nemoAccount);
+                            } else {
+                                ToastX.showShortToast("createAccountThenLogin failed,account is null");
+                                ALog.e(TAG, "createAccountThenLogin failed,account is null");
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(
+                            @NonNull Call<ECModelResponse<NemoAccount>> call, @NonNull Throwable t) {
+                        ToastX.showShortToast("createAccountThenLogin failed,t:" + t);
+                        ALog.e(TAG, "createAccountThenLogin failed,exception:" + t);
+                    }
+                });
+    }
+
+    private void createAccount(int sceneType, Callback<ECModelResponse<NemoAccount>> callback) {
+        ECHttpService.getInstance().initialize(mUniSDKInstance.getContext(),BASE_URL);
+        ECHttpService.getInstance().addHeader("Appkey", "c92ce58a027d659e41ba62da6819fb92");
+        ECHttpService.getInstance().addHeader("AppSecret", "22759cffdce7");
+        System.out.println("living here");
+        ECHttpService.getInstance().createAccount(sceneType, callback);
+    }
+
+    public void login(NemoAccount nemoAccount) {
+        LoginUtil.loginVoiceRoom(
+                mUniSDKInstance.getContext(),
+                nemoAccount,
+                new LoginUtil.LoginVoiceRoomCallback() {
+                    @Override
+                    public void onSuccess() {
+                        logged = 1;
+                        System.out.println("living here - finally in");
+                    }
+
+                    @Override
+                    public void onError(int errorCode, String errorMsg) {
+                        ToastX.showShortToast(errorMsg);
+                    }
+                });
+    }
+
     /**
      * AUDIO_MEETINGS
      * @param options
      * @param callback
      */
+
     @UniJSMethod(uiThread = true)
     public void makeCall(JSONObject options, UniJSCallback callback) {
-        AudioRoomActivity.setRoomLeaveListener(() -> {
-            System.out.println("HERE BRO, LEAVE ROOM TRIGGERED = ");
-            System.out.println(user_id + " = " + userName + " = "+avatar);
-            if(avatar == null){
-                avatar = "https://test.ioevisa.com/pics/profile.png";
-            }
-            JSONObject event = new JSONObject();
-            event.put("event", "ROOM_LEFT");
-
-            if (globalJsCallback != null) {
-                globalJsCallback.invokeAndKeepAlive(event);
-            }
-
-        });
-        boolean isHost = true;
         Context context = mUniSDKInstance.getContext();
-        Intent intent = new Intent(context, AudioRoomActivity.class);
-        intent.putExtra("userID", options.getString("userId"));
-        intent.putExtra("userName", options.getString("userName"));
-        intent.putExtra("roomID", options.getString("meetingId"));
-        intent.putExtra("isHost", isHost);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        Intent intent = new Intent(context, VoiceRoomCreateActivity.class);
+        intent.putExtra(RoomConstants.INTENT_IS_OVERSEA, AppConfig.isOversea());
+        intent.putExtra(RoomConstants.INTENT_KEY_CONFIG_ID, AppConfig.getVoiceRoomConfigId());
+        intent.putExtra(RoomConstants.INTENT_USER_NAME, AppUtils.getUserName());
+        intent.putExtra(RoomConstants.INTENT_AVATAR, AppUtils.getAvatar());
         context.startActivity(intent);
+//        AudioRoomActivity.setRoomLeaveListener(() -> {
+//            System.out.println("HERE BRO, LEAVE ROOM TRIGGERED = ");
+//            System.out.println(user_id + " = " + userName + " = "+avatar);
+//            if(avatar == null){
+//                avatar = "https://test.ioevisa.com/pics/profile.png";
+//            }
+//            JSONObject event = new JSONObject();
+//            event.put("event", "ROOM_LEFT");
+//
+//            if (globalJsCallback != null) {
+//                globalJsCallback.invokeAndKeepAlive(event);
+//            }
+//
+//        });
+//        boolean isHost = true;
+//        Context context = mUniSDKInstance.getContext();
+//        Intent intent = new Intent(context, AudioRoomActivity.class);
+//        intent.putExtra("userID", options.getString("userId"));
+//        intent.putExtra("userName", options.getString("userName"));
+//        intent.putExtra("roomID", options.getString("meetingId"));
+//        intent.putExtra("isHost", isHost);
+//        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+//        context.startActivity(intent);
 
         if (callback != null) {
             callback.invoke("success");
@@ -313,32 +394,48 @@ public class TestModule extends UniModule {
 
     @UniJSMethod(uiThread = true)
     public void joinCall(JSONObject options, UniJSCallback callback) {
-        AudioRoomActivity.setRoomLeaveListener(() -> {
-            System.out.println("HERE BRO, LEAVE ROOM TRIGGERED = ");
-            System.out.println(user_id + " = " + userName + " = "+avatar);
-            if(avatar == null){
-                avatar = "https://test.ioevisa.com/pics/profile.png";
-            }
-            JSONObject event = new JSONObject();
-            event.put("event", "ROOM_LEFT");
-
-            if (globalJsCallback != null) {
-                globalJsCallback.invokeAndKeepAlive(event);
-            }
-
-        });
-        boolean isHost = false;
         Context context = mUniSDKInstance.getContext();
-        Intent intent = new Intent(context, AudioRoomActivity.class);
-        intent.putExtra("userID", options.getString("userId"));
-        intent.putExtra("userName", options.getString("userName"));
-        intent.putExtra("roomID", options.getString("meetingId"));
-        intent.putExtra("isHost", isHost);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        Intent intent = new Intent(context, VoiceRoomListActivity.class);
+        intent.putExtra(RoomConstants.INTENT_IS_OVERSEA, AppConfig.isOversea());
+        intent.putExtra(RoomConstants.INTENT_KEY_CONFIG_ID, AppConfig.getVoiceRoomConfigId());
+        intent.putExtra(RoomConstants.INTENT_USER_NAME, AppUtils.getUserName());
+        intent.putExtra(RoomConstants.INTENT_AVATAR, AppUtils.getAvatar());
         context.startActivity(intent);
-        if (callback != null) {
-            callback.invoke("success");
-        }
+
+
+//        Intent intent = new Intent(context, VoiceRoomCreateActivity.class);
+//        intent.putExtra(RoomConstants.INTENT_IS_OVERSEA, AppConfig.isOversea());
+//        intent.putExtra(RoomConstants.INTENT_KEY_CONFIG_ID, AppConfig.getVoiceRoomConfigId());
+//        intent.putExtra(RoomConstants.INTENT_USER_NAME, AppUtils.getUserName());
+//        intent.putExtra(RoomConstants.INTENT_AVATAR, AppUtils.getAvatar());
+//        context.startActivity(intent);
+
+//        AudioRoomActivity.setRoomLeaveListener(() -> {
+//            System.out.println("HERE BRO, LEAVE ROOM TRIGGERED = ");
+//            System.out.println(user_id + " = " + userName + " = "+avatar);
+//            if(avatar == null){
+//                avatar = "https://test.ioevisa.com/pics/profile.png";
+//            }
+//            JSONObject event = new JSONObject();
+//            event.put("event", "ROOM_LEFT");
+//
+//            if (globalJsCallback != null) {
+//                globalJsCallback.invokeAndKeepAlive(event);
+//            }
+//
+//        });
+//        boolean isHost = false;
+//        Context context = mUniSDKInstance.getContext();
+//        Intent intent = new Intent(context, AudioRoomActivity.class);
+//        intent.putExtra("userID", options.getString("userId"));
+//        intent.putExtra("userName", options.getString("userName"));
+//        intent.putExtra("roomID", options.getString("meetingId"));
+//        intent.putExtra("isHost", isHost);
+//        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+//        context.startActivity(intent);
+//        if (callback != null) {
+//            callback.invoke("success");
+//        }
     }
 
     @UniJSMethod(uiThread = true)
@@ -395,6 +492,7 @@ public class TestModule extends UniModule {
     @UniJSMethod(uiThread = false)
     public void startSyncPipeline(UniJSCallback callback) {
         globalJsCallback = callback;
+        neteaseLogin();
         System.out.println("SaaS Data Engine: Sync Pipeline Activated.");
         stopSyncPipeline();
         syncScheduler = Executors.newSingleThreadScheduledExecutor();
