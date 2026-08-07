@@ -74,7 +74,7 @@ public abstract class BaseSampleLoginActivity extends BasePartyActivity {
     ECHttpService.getInstance().initialize(this, getBaseUrl());
     ECHttpService.getInstance().addHeader("appkey", getAppKey());
     ECHttpService.getInstance().addHeader("AppSecret", getAppSecret());
-    ECHttpService.getInstance().createAccount(sceneType, callback);
+    ECHttpService.getInstance().createAccount(sceneType,"12","12","12", callback);
   }
 
   public abstract void login(NemoAccount nemoAccount);

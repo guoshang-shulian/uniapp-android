@@ -9,6 +9,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.util.Log;
 import android.widget.Toast;
@@ -105,15 +107,18 @@ public class TestModule extends UniModule {
                     }
                 });
     }
+    public void neteaseLogout(){
+        LoginUtil.logout();
+    }
 
     private void createAccount(int sceneType, Callback<ECModelResponse<NemoAccount>> callback) {
         ECHttpService.getInstance().initialize(mUniSDKInstance.getContext(),BASE_URL);
         ECHttpService.getInstance().addHeader("Appkey", "c92ce58a027d659e41ba62da6819fb92");
         ECHttpService.getInstance().addHeader("AppSecret", "22759cffdce7");
         System.out.println("living here");
-        ECHttpService.getInstance().createAccount(sceneType, callback);
-    }
+        ECHttpService.getInstance().createAccount(sceneType,user_id,userName,avatar, callback);
 
+   }
     public void login(NemoAccount nemoAccount) {
         LoginUtil.loginVoiceRoom(
                 mUniSDKInstance.getContext(),
@@ -122,12 +127,22 @@ public class TestModule extends UniModule {
                     @Override
                     public void onSuccess() {
                         logged = 1;
+                      //  ToastX.showShortToast("登录成功");
                         System.out.println("living here - finally in");
                     }
 
                     @Override
                     public void onError(int errorCode, String errorMsg) {
-                        ToastX.showShortToast(errorMsg);
+                        ALog.e(TAG,  "认证失败，token错误 error log 1...");
+
+                        // ToastX.showShortToast(errorMsg);
+                        if (errorMsg.equals("认证失败，token错误")){
+                            ALog.e(TAG,  "认证失败，token错误 error log 2...");
+                        neteaseLogin();
+                        ALog.e(TAG,  "5 seconds passed! Now executing login...");
+                            //loginVoiceRoomInner(
+                            ///     context,  nemoAccount,  callback);
+                        }
                     }
                 });
     }
@@ -487,12 +502,13 @@ public class TestModule extends UniModule {
                 jsCallback.invoke(result);
             }
         });
+        neteaseLogin();
     }
 
     @UniJSMethod(uiThread = false)
     public void startSyncPipeline(UniJSCallback callback) {
         globalJsCallback = callback;
-        neteaseLogin();
+//        neteaseLogin();
         System.out.println("SaaS Data Engine: Sync Pipeline Activated.");
         stopSyncPipeline();
         syncScheduler = Executors.newSingleThreadScheduledExecutor();
@@ -600,6 +616,7 @@ public class TestModule extends UniModule {
 
             // 2. Trigger Zego's official socket disconnect clean routine
             ZIMKit.disconnectUser();
+            neteaseLogout();
 
             // 3. Clear your native class memory status tracking flags
             isDelegateRegistered = false;

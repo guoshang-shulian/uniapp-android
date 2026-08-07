@@ -36,54 +36,6 @@
           "class": "com.example.openim.OpenIMSDK"
         }
       ]
-    },
-    {
-      "android": {
-        "plugins": [
-          {
-            "type": "module",
-            "name": "zego-ZegoExpressUniAppSDK_ZegoExpressUniAppEngine",
-            "class": "com.zego.express.ZegoExpressUniAppEngine"
-          },
-          {
-            "type": "component",
-            "name": "zego-view",
-            "class": "com.zego.express.ZegoView"
-          },
-          {
-            "type": "component",
-            "name": "zego-preview-view",
-            "class": "com.zego.express.ZegoPreviewView"
-          },
-          {
-            "type": "component",
-            "name": "ZegoExpress-Local-View",
-            "class": "com.zego.express.ZegoPublishPreview"
-          },
-          {
-            "type": "component",
-            "name": "ZegoExpress-Remote-View",
-            "class": "com.zego.express.ZegoPlayView"
-          },
-          {
-            "type": "component",
-            "name": "ZegoExpress-Mediaplayer-View",
-            "class": "com.zego.express.ZegoMediaPlayerView"
-          }
-        ],
-        "hooksClass": "com.zego.express.ZegoExpressUniAppEngine",
-        "dependencies": [
-          "com.android.support:recyclerview-v7:28.0.0",
-          "com.android.support:support-v4:28.0.0",
-          "com.android.support:appcompat-v7:28.0.0",
-          "com.alibaba:fastjson:1.1.46.android"
-        ],
-        "abis": [
-          "armeabi-v7a",
-          "arm64-v8a"
-        ],
-        "integrateType": "aar"
-      }
     }
   ]
 }

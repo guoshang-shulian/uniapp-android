@@ -18,6 +18,7 @@ import com.netease.yunxin.kit.roomkit.api.NERoomKit
 import com.netease.yunxin.kit.roomkit.api.NERoomKitOptions
 import com.netease.yunxin.kit.roomkit.api.NERoomLanguage
 import com.netease.yunxin.kit.roomkit.api.model.NEIMServerConfig
+import com.netease.yunxin.kit.roomkit.api.model.NERoomIMAuthType
 import com.netease.yunxin.kit.roomkit.api.model.NERoomKitServerConfig
 import com.netease.yunxin.kit.roomkit.api.model.NERoomRtcLastmileProbeConfig
 import com.netease.yunxin.kit.roomkit.api.model.NERoomRtcLastmileProbeResult
@@ -448,9 +449,11 @@ internal class VoiceRoomKitImpl : NEVoiceRoomKit, CoroutineRunner() {
             voiceRoomHttpService.addHeader("token", token)
             callback?.onSuccess(Unit)
         } else {
-            NERoomKit.getInstance().getService(NEAuthService::class.java).login(
+            NERoomKit.getInstance().getService(NEAuthService::class.java).loginByIM(
                 account,
                 token,
+                null, // Optional authType
+                NERoomIMAuthType.STATIC,
                 object : NECallback2<Unit>() {
                     override fun onSuccess(data: Unit?) {
                         VoiceRoomLog.i(tag, "login success")

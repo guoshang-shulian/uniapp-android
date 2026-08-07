@@ -4,6 +4,8 @@
 
 package com.netease.yunxin.kit.voiceroomkit.ui;
 
+import static kotlinx.coroutines.DelayKt.delay;
+
 import android.content.Context;
 
 import androidx.annotation.Nullable;
@@ -50,12 +52,22 @@ public class LoginUtil {
             });
   }
 
+    public static void  logout(){
+        NEVoiceRoomKit.getInstance()
+                .logout(null);
+        UserInfoManager.clearUserInfo();
+    }
+
   private static void loginVoiceRoomInner(
       Context context, NemoAccount nemoAccount, LoginVoiceRoomCallback callback) {
+
+              System.out.println("userUuid ---> " +nemoAccount.userUuid);
+      System.out.println("userToken ---> " +nemoAccount.userToken);
+      System.out.println("userToken ---> " +nemoAccount.userName);
     NEVoiceRoomKit.getInstance()
         .login(
             nemoAccount.userUuid,
-            nemoAccount.userToken,
+                nemoAccount.userToken,
             new NEVoiceRoomCallback<Unit>() {
 
               @Override
@@ -88,7 +100,12 @@ public class LoginUtil {
                 UserInfoManager.clearUserInfo();
                 if (callback != null) {
                   callback.onError(
-                      code, "NEVoiceRoomKit login failed code = " + code + ", msg = " + msg);
+                      code,  msg);
+                }
+                if(msg != null){
+                    if (msg.equals("认证失败，token错误")){
+                             ///     context,  nemoAccount,  callback);
+                    }
                 }
               }
             });
