@@ -41,4 +41,4 @@ jobs:
           echo "SSH_KEY"
           echo "$SSH_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no app/build/outputs/apk/release/app-release.apk ${{ secrets.USER }}@${{ secrets.HOST }}:/opt/av/
+          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no app/build/outputs/apk/release/app-release.apk ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/av/
