@@ -297,6 +297,8 @@ public abstract class VoiceRoomBaseActivity extends BaseActivity
     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     initIntent();
     if (voiceRoomInfo == null) {
+      android.widget.Toast.makeText(this, "Error: Voice Room Data is NULL!", android.widget.Toast.LENGTH_LONG).show();
+
       return;
     }
     roomViewModel = getRoomViewModel();
@@ -311,12 +313,12 @@ public abstract class VoiceRoomBaseActivity extends BaseActivity
     initListeners();
     initData();
     bindForegroundService();
-    BluetoothHeadsetUtil.registerBluetoothHeadsetStatusObserver(
-        bluetoothHeadsetStatusChangeListener);
-    if (BluetoothHeadsetUtil.isBluetoothHeadsetConnected()
-        && !BluetoothHeadsetUtil.hasBluetoothConnectPermission(VoiceRoomBaseActivity.this)) {
-      BluetoothHeadsetUtil.requestBluetoothConnectPermission(VoiceRoomBaseActivity.this);
-    }
+//    BluetoothHeadsetUtil.registerBluetoothHeadsetStatusObserver(
+//        bluetoothHeadsetStatusChangeListener);
+//    if (BluetoothHeadsetUtil.isBluetoothHeadsetConnected()
+//        && !BluetoothHeadsetUtil.hasBluetoothConnectPermission(VoiceRoomBaseActivity.this)) {
+//      BluetoothHeadsetUtil.requestBluetoothConnectPermission(VoiceRoomBaseActivity.this);
+//    }
     GiftHelper.getInstance().init();
     enterRoom();
     audioPlay.checkMusicFiles();
@@ -745,6 +747,7 @@ public abstract class VoiceRoomBaseActivity extends BaseActivity
       rcyChatMsgList.appendItems(charSequenceList);
       roomViewModel.initDataOnJoinRoom();
     } else {
+      ToastX.showShortToast("room在入群");
       roomViewModel.joinRoom(
           roomUuid,
           nick,
@@ -1145,15 +1148,32 @@ public abstract class VoiceRoomBaseActivity extends BaseActivity
   }
 
   private void bindForegroundService() {
-    Intent intent = new Intent();
-    intent.setClass(this, KeepAliveService.class);
-    mServiceConnection = new SimpleServiceConnection();
-    bindService(intent, mServiceConnection, Context.BIND_AUTO_CREATE);
+//
+//    Intent intent = new Intent();
+//    intent.setClass(this, KeepAliveService.class);
+//    mServiceConnection = new SimpleServiceConnection();
+//    bindService(intent, mServiceConnection, Context.BIND_AUTO_CREATE);
+    new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+      @Override
+      public void run() {
+        try {
+          Intent intent = new Intent();
+          intent.setClass(VoiceRoomBaseActivity.this, KeepAliveService.class);
+          mServiceConnection = new SimpleServiceConnection();
+          bindService(intent, mServiceConnection, Context.BIND_AUTO_CREATE);
+          ToastX.showShortToast("Foreground启动成功");
+        } catch (Exception e) {
+          ToastX.showShortToast("Foreground失败 " +e.getMessage());
+          //android.util.Log.e("VoiceRoomFix", "Asynchronous service bind failed: " + e.getMessage());
+        }
+      }
+    });
   }
 
   private void unbindForegroundService() {
     if (mServiceConnection != null) {
       unbindService(mServiceConnection);
+      mServiceConnection = null;
     }
   }
 
@@ -1162,6 +1182,7 @@ public abstract class VoiceRoomBaseActivity extends BaseActivity
     public void onServiceConnected(ComponentName componentName, IBinder service) {
 
       if (service instanceof KeepAliveService.SimpleBinder) {
+        ToastX.showShortToast("servICE启动成功");
         ALog.i(TAG, "onServiceConnect");
       }
     }

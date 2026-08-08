@@ -1,5 +1,9 @@
 <resources>
 
+    <style name="Theme.AppCompat.NoActionBar" parent="Theme.AppCompat.Light.NoActionBar">
+
+    </style>
+
     <style name="BottomDialogTheme" parent="ThemeOverlay.AppCompat.Dialog">
         <item name="android:windowBackground">#00000000</item>
         <item name="android:colorBackgroundCacheHint">@null</item>

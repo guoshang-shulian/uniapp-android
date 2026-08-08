@@ -457,7 +457,7 @@ public class VoiceRoomViewModel extends ViewModel {
 
               @Override
               public void onFailure(int code, @Nullable String msg) {
-                ALog.e(TAG, "joinRoom failed code = " + code + " msg = " + msg);
+                ALog.e(TAG, "joinRoom failed code = " + code + " msg = " + msg + "nick =="+nick);
                 if (callback != null) {
                   callback.onFailure(code, msg);
                 }
