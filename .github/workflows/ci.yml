@@ -6,6 +6,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment:
+      name: production
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -25,3 +27,18 @@ jobs:
 
       - name: CheckSize
         run: du -sh app/build/outputs/apk/release/app-release.apk
+
+      - name: Move to  remote server
+        env:
+          SSH_USER: ${{ secrets.USER }}
+          SSH_HOST: ${{ secrets.HOST }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+        run: |
+          # Prepare SSH key
+          mkdir -p ~/.ssh
+          echo "$SSH_USER"
+          echo "$SSH_HOST"
+          echo "SSH_KEY"
+          echo "$SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no app/build/outputs/apk/release/app-release.apk ${{ secrets.USER }}@${{ secrets.HOST }}:/opt/av/
