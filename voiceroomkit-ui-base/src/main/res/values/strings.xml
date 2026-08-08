@@ -95,7 +95,7 @@
     <string name="voiceroom_end_live_title">确认结束直播？</string>
     <string name="voiceroom_end_live_tips">请确认是否结束直播</string>
 
-    <string name="voiceroom_start_live_error">开启语聊房失败</string>
+    <string name="voiceroom_start_live_error">启动中，30秒再操作</string>
     <string name="voiceroom_join_live_error">加入语聊房失败</string>
     <string name="voiceroom_setting">设置</string>
     <string name="voiceroom_audio_effect">音效</string>

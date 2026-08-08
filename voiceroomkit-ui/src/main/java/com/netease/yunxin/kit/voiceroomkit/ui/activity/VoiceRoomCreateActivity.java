@@ -34,7 +34,8 @@ public class VoiceRoomCreateActivity extends MultiCreateRoomActivity {
     if (code == 2001) {
       NavUtils.toAuthenticateActivity(VoiceRoomCreateActivity.this);
     } else {
-      ToastX.showShortToast(getString(R.string.ec_join_failed_tips));
+      System.out.println("established message = "+msg);
+      ToastX.showShortToast("启动中，30秒后再操作");
     }
   }
 

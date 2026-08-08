@@ -748,6 +748,7 @@ public abstract class VoiceRoomBaseActivity extends BaseActivity
       roomViewModel.initDataOnJoinRoom();
     } else {
       String finalNick = (nick == null || nick.trim().isEmpty()) ? "用户" : nick;
+      System.out.println("value here = "+nick);
       nick = finalNick;
       ToastX.showShortToast("room在入群");
       roomViewModel.joinRoom(
