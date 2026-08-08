@@ -21,4 +21,7 @@ jobs:
           cache: 'gradle' # 👈 This enables automatic caching of Gradle dependencies
 
       - name: Build with Gradle
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleRelease
+
+      - name: CheckSize
+        run: du -sh app/build/outputs/apk/release/app-release.apk
