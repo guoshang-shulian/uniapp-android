@@ -747,10 +747,12 @@ public abstract class VoiceRoomBaseActivity extends BaseActivity
       rcyChatMsgList.appendItems(charSequenceList);
       roomViewModel.initDataOnJoinRoom();
     } else {
+      String finalNick = (nick == null || nick.trim().isEmpty()) ? "用户" : nick;
+      nick = finalNick;
       ToastX.showShortToast("room在入群");
       roomViewModel.joinRoom(
           roomUuid,
-          nick,
+              finalNick,
           avatar,
           role,
           new NEVoiceRoomCallback<NEVoiceRoomInfo>() {
