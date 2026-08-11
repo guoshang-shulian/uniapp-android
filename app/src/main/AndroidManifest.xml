@@ -16,6 +16,7 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <!-- Fallback for older Android versions -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-sdk tools:overrideLibrary="com.bytedance.gromore, com.bytedance.sdk.openadsdk, com.bytedance.tools" />
 
 
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
@@ -49,8 +50,11 @@
         android:preserveLegacyExternalStorage="true"
         android:largeHeap="true"
         android:supportsRtl="true"
-        tools:replace="android:name,android:allowClearUserData,android:requestLegacyExternalStorage">
+        android:allowBackup="true"
+        tools:replace="android:name,android:allowBackup,android:allowClearUserData,android:requestLegacyExternalStorage"
 
+        >
+<!--        tools:replace="android:name,android:allowBackup,android:allowClearUserData,android:requestLegacyExternalStorage"-->
         <service
             android:name="com.netease.yunxin.kit.voiceroomkit.ui.base.service.KeepAliveService"
             android:foregroundServiceType="mediaProjection|microphone|mediaPlayback"

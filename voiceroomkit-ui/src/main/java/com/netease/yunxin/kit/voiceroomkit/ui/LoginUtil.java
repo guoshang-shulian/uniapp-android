@@ -6,17 +6,23 @@ package com.netease.yunxin.kit.voiceroomkit.ui;
 
 import static kotlinx.coroutines.DelayKt.delay;
 
+import androidx.appcompat.app.AlertDialog;
 import android.content.Context;
 
 import androidx.annotation.Nullable;
 
 import com.netease.yunxin.kit.alog.ALog;
+import com.netease.yunxin.kit.common.ui.utils.ToastX;
 import com.netease.yunxin.kit.entertainment.common.model.NemoAccount;
+import com.netease.yunxin.kit.entertainment.common.model.RoomModel;
+import com.netease.yunxin.kit.entertainment.common.utils.OneOnOneUtils;
 import com.netease.yunxin.kit.entertainment.common.utils.UserInfoManager;
 import com.netease.yunxin.kit.ordersong.core.NEOrderSongService;
 import com.netease.yunxin.kit.voiceroomkit.api.NEVoiceRoomCallback;
 import com.netease.yunxin.kit.voiceroomkit.api.NEVoiceRoomKit;
 import com.netease.yunxin.kit.voiceroomkit.api.NEVoiceRoomKitConfig;
+import com.netease.yunxin.kit.voiceroomkit.ui.base.utils.FloatPlayManager;
+import com.netease.yunxin.kit.voiceroomkit.ui.utils.NavUtils;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -56,6 +62,48 @@ public class LoginUtil {
         NEVoiceRoomKit.getInstance()
                 .logout(null);
         UserInfoManager.clearUserInfo();
+    }
+
+    public static  void join(Context context, RoomModel info,String avatar,String userName){
+        if (FloatPlayManager.getInstance().isShowFloatView()) {
+            if (FloatPlayManager.getInstance().getVoiceRoomInfo() != null
+                    && FloatPlayManager.getInstance()
+                    .getVoiceRoomInfo()
+                    .getRoomUuid()
+                    .equals(info.getRoomUuid())) {
+                FloatPlayManager.getInstance().stopFloatPlay();
+                NavUtils.toVoiceRoomAudiencePage(context, userName, avatar, info, false);
+            } else {
+                AlertDialog.Builder builder = new AlertDialog.Builder(context);
+                builder.setTitle("提示");
+                builder.setMessage("点击入");
+                builder.setCancelable(true);
+                builder.setPositiveButton("确认",
+                        (dialog, which) -> {
+                            NEVoiceRoomKit.getInstance()
+                                    .leaveRoom(
+                                            new NEVoiceRoomCallback<Unit>() {
+                                                @Override
+                                                public void onSuccess(@Nullable Unit unit) {
+                                                    NavUtils.toVoiceRoomAudiencePage(
+                                                            context, userName, avatar, info, true);
+                                                }
+
+                                                @Override
+                                                public void onFailure(int code, @Nullable String msg) {}
+                                            });
+                            dialog.dismiss();
+                        });
+                builder.setNegativeButton( "取消"
+                        , (dialog, which) -> dialog.dismiss());
+                AlertDialog alertDialog = builder.create();
+                alertDialog.show();
+            }
+        } else if (OneOnOneUtils.isInTheCall()) {
+            ToastX.showShortToast("你在会议中");
+        } else {
+            NavUtils.toVoiceRoomAudiencePage(context, userName, avatar, info, true);
+        }
     }
 
   private static void loginVoiceRoomInner(

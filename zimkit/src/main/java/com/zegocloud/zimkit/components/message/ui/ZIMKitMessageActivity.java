@@ -4,6 +4,8 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.text.TextUtils;
+import android.view.View;
+
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.lifecycle.ViewModel;
@@ -17,6 +19,10 @@ import com.zegocloud.zimkit.databinding.ZimkitActivityMessageBinding;
 import com.zegocloud.zimkit.services.ZIMKitConfig;
 import com.zegocloud.zimkit.services.internal.ZIMKitAdvancedKey;
 import com.zegocloud.zimkit.services.internal.ZIMKitCore;
+import com.zegocloud.zimkit.services.internal.ZIMKitEventHandler;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBinding, ViewModel> {
 
@@ -25,16 +31,63 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
     private String type;
     private boolean isFromPush;
 
+    private String joinData = null;
+
+    private static BackToUniappCallback mListener;
+
+    private  String groupId;
+
+    public static void setOnNativeDataListener(BackToUniappCallback listener) {
+        mListener = listener;
+    }
+
     @Override
     protected void initView() {
         Bundle bundle = getIntent().getBundleExtra(ZIMKitConstant.RouterConstant.KEY_BUNDLE);
+        title = bundle.getString(ZIMKitConstant.MessagePageConstant.KEY_TITLE);
+        type = bundle.getString(ZIMKitConstant.MessagePageConstant.KEY_TYPE);
+        String id = bundle.getString(ZIMKitConstant.MessagePageConstant.KEY_ID);
+        groupId = id;
         if (bundle == null) {
             finish();
             return;
         }
-        title = bundle.getString(ZIMKitConstant.MessagePageConstant.KEY_TITLE);
-        type = bundle.getString(ZIMKitConstant.MessagePageConstant.KEY_TYPE);
-        String id = bundle.getString(ZIMKitConstant.MessagePageConstant.KEY_ID);
+        mBinding.tvGroupNoticeEnter.setOnClickListener(p -> {
+           // System.out.println("finding out here");
+            mListener.onDataReceived(joinData);
+
+        });
+
+
+        ZIMKitEventHandler.setOnNativeDataListener(v -> {
+            try {
+                if (v != null && v.startsWith("stop")) {
+                    String cleanedData = v.substring(4);
+                    if(cleanedData.equals(id)){
+                        mBinding.layoutGroupNotice.setVisibility(View.GONE);
+                        joinData = null;
+                    }
+                    return; // Exit early and do nothing else
+                }
+
+                JSONObject jsonObject = new JSONObject(v);
+                JSONObject dataObj = jsonObject.getJSONObject("data");
+                JSONObject liveModelObj = dataObj.getJSONObject("liveModel");
+                String roomName = liveModelObj.getString("roomName");
+                if(roomName.equals(id)){
+                 mBinding.layoutGroupNotice.setVisibility(View.VISIBLE);
+                 joinData = v;
+                }
+            } catch (JSONException e) {
+                throw new RuntimeException(e);
+            }
+
+                }
+
+        );
+//        mBinding.layoutGroupNotice.setVisibility(View.INVISIBLE);
+
+
         String avatar = bundle.getString(ZIMKitConstant.MessagePageConstant.KEY_AVATAR);
         isFromPush = bundle.getBoolean(ZIMKitConstant.MessagePageConstant.KEY_PUSH, false);
         mBinding.titleBar.setRightImg(R.mipmap.zimkit_icon_more);

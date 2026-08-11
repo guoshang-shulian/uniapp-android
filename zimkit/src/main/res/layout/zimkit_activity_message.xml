@@ -1,25 +1,69 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layout xmlns:android="http://schemas.android.com/apk/res/android"
-  xmlns:app="http://schemas.android.com/apk/res-auto"
-  xmlns:tools="http://schemas.android.com/tools">
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools">
 
   <androidx.constraintlayout.widget.ConstraintLayout
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    tools:context=".ZIMKitMessageActivity">
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      tools:context=".ZIMKitMessageActivity">
 
+    <!-- 1. The original TitleBar -->
     <com.zegocloud.zimkit.common.components.widget.TitleBar
-      android:id="@+id/title_bar"
-      android:layout_width="match_parent"
-      android:layout_height="@dimen/title_bar_height"
-      app:layout_constraintTop_toTopOf="parent" />
+        android:id="@+id/title_bar"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/title_bar_height"
+        app:layout_constraintTop_toTopOf="parent" />
 
+    <!-- 2. INSERTED: Group Notification Banner -->
+
+    <LinearLayout
+        android:id="@+id/layout_group_notice"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#FFF3CD"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="10dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@id/title_bar"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+      <TextView
+          android:id="@+id/tv_group_notice_content"
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_weight="1"
+          android:text="本群在会议中"
+          android:textColor="@android:color/black"
+          android:textSize="14sp" />
+
+      <TextView
+          android:id="@+id/tv_group_notice_enter"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:clickable="true"
+          android:focusable="true"
+          android:text="进入"
+          android:textColor="#1677FF"
+          android:textSize="14sp"
+          android:textStyle="bold"
+          android:paddingStart="12dp"
+          android:paddingEnd="4dp" />
+
+    </LinearLayout>
+
+
+
+    <!-- 3. UPDATED: FrameLayout now anchors to the bottom of layout_group_notice -->
     <FrameLayout
-      android:id="@+id/fra_message"
-      android:layout_width="match_parent"
-      android:layout_height="0dp"
-      app:layout_constraintBottom_toBottomOf="parent"
-      app:layout_constraintLeft_toLeftOf="parent"
-      app:layout_constraintTop_toBottomOf="@id/title_bar" />
+        android:id="@+id/fra_message"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/layout_group_notice" />
+
   </androidx.constraintlayout.widget.ConstraintLayout>
 </layout>

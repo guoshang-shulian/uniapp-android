@@ -1,6 +1,8 @@
 package com.zegocloud.zimkit.services.internal;
 
 import android.util.Log;
+
+import com.zegocloud.zimkit.components.message.ui.BackToUniappCallback;
 import com.zegocloud.zimkit.services.ZIMKitConfig;
 import com.zegocloud.zimkit.services.model.ZIMKitConversation;
 import com.zegocloud.zimkit.services.model.ZIMKitMessage;
@@ -29,6 +31,14 @@ import timber.log.Timber;
 public class ZIMKitEventHandler extends ZIMEventHandler {
 
     private boolean kickedOutAccount = false;
+
+    private static CallCallback mListener;
+
+    private  String groupId;
+
+    public static void setOnNativeDataListener(CallCallback listener) {
+        mListener = listener;
+    }
 
     @Override
     public void onConnectionStateChanged(ZIM zim, ZIMConnectionState state, ZIMConnectionEvent event,
@@ -75,6 +85,22 @@ public class ZIMKitEventHandler extends ZIMEventHandler {
 
     @Override
     public void onReceiveGroupMessage(ZIM zim, ArrayList<ZIMMessage> messageList, String fromGroupID) {
+
+        ZIMMessage mk = messageList.get(0);
+        if(mk.getExtendedData() != null && mListener != null){
+            if (mk.getExtendedData().startsWith("start")) {
+                String cleanedData = mk.getExtendedData().substring(5);
+                mListener.callInfo(cleanedData);
+                return;
+            } else if (mk.getExtendedData().startsWith("stop")) {
+                //String cleanedData = mk.getExtendedData().substring(5)
+              mListener.callInfo(mk.getExtendedData());
+                return;
+            } else {
+                // Handle other cases
+            }
+        }
+        System.out.println("mListener = "+mListener);
         super.onReceiveGroupMessage(zim, messageList, fromGroupID);
         handleReceiveNewMessages(messageList);
 

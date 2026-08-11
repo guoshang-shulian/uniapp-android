@@ -16,7 +16,12 @@ public class ZIMKitInputConfig {
         smallButtons = new ArrayList<>(
             Arrays.asList(ZIMKitInputButtonName.AUDIO, ZIMKitInputButtonName.EMOJI, ZIMKitInputButtonName.PICTURE,
                 ZIMKitInputButtonName.EXPAND));
-        expandButtons = new ArrayList<>(Arrays.asList(ZIMKitInputButtonName.TAKE_PHOTO, ZIMKitInputButtonName.FILE));
+        expandButtons = new ArrayList<>(Arrays.asList(
+                ZIMKitInputButtonName.TAKE_PHOTO,
+                ZIMKitInputButtonName.FILE,
+                ZIMKitInputButtonName.VOICE_CALL,
+                ZIMKitInputButtonName.PRODUCT
+        ));
         emojis = new ArrayList<>(EmojiUtils.createEmojiData());
     }
 }

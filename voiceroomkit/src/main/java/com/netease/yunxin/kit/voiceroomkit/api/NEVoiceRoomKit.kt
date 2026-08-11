@@ -622,11 +622,12 @@ data class NECreateVoiceRoomParams(
     val seatApplyMode: Int = NEVoiceRoomSeatApplyMode.managerApproval,
     val configId: Int = 0,
     val cover: String?,
+    val groupId: String?,
     val liveType: Int = NELiveType.LIVE_TYPE_VOICE,
     val extraData: String? = null
 ) {
     override fun toString(): String {
-        return "NECreateVoiceRoomParams(title='$title', nick='$nick', seatCount=$seatCount，seatMode=$seatApplyMode, configId=$configId, cover=$cover, extraData=$extraData)"
+        return "NECreateVoiceRoomParams(title='$title', nick='$nick', seatCount=$seatCount，seatMode=$seatApplyMode, configId=$configId, cover=$cover, extraData=$extraData, groupId=$groupId)"
     }
 }
 

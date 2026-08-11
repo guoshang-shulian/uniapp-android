@@ -127,6 +127,11 @@ public class ZIMKitMessageFragment extends BaseFragment<ZimkitFragmentMessageBin
 
     private ZIMKitMessagesListListener messagesListListener;
     private static final int REQUEST_CODE_PHOTO = 1012;
+    private static BackToUniappCallback mListener;
+
+    public static void setOnNativeDataListener(BackToUniappCallback listener) {
+        mListener = listener;
+    }
     private ActivityResultLauncher<Intent> forwardActivityLauncher = registerForActivityResult(
         new StartActivityForResult(), new ActivityResultCallback<ActivityResult>() {
             @Override
@@ -555,8 +560,9 @@ public class ZIMKitMessageFragment extends BaseFragment<ZimkitFragmentMessageBin
                     pickPhotoToSend(REQUEST_CODE_PHOTO);
                 } else if (itemModel.getButtonName() == ZIMKitInputButtonName.TAKE_PHOTO) {
                     useCameraTakePhotoToSend();
-                } else if (itemModel.getButtonName() == ZIMKitInputButtonName.VIDEO_CALL
-                    || itemModel.getButtonName() == ZIMKitInputButtonName.VOICE_CALL) {
+                } else if (itemModel.getButtonName() == ZIMKitInputButtonName.VOICE_CALL) {
+                    mListener.onStartCall("startCall");
+                } else if (itemModel.getButtonName() == ZIMKitInputButtonName.VIDEO_CALL) {
                     showBottomCallDialog(false);
                 } else if (itemModel.getButtonName() == ZIMKitInputButtonName.FILE) {
                     pickFileToSend();
@@ -568,10 +574,11 @@ public class ZIMKitMessageFragment extends BaseFragment<ZimkitFragmentMessageBin
                 ZIMKitMessageModel repliedMessage) {
                 if (itemModel.getButtonName() == ZIMKitInputButtonName.PICTURE) {
                     pickPhotoToSend(REQUEST_CODE_PHOTO);
+                } else if (itemModel.getButtonName() == ZIMKitInputButtonName.VOICE_CALL) {
+                   mListener.onStartCall("startCall");
                 } else if (itemModel.getButtonName() == ZIMKitInputButtonName.TAKE_PHOTO) {
                     useCameraTakePhotoToSend();
-                } else if (itemModel.getButtonName() == ZIMKitInputButtonName.VIDEO_CALL
-                    || itemModel.getButtonName() == ZIMKitInputButtonName.VOICE_CALL) {
+                } else if (itemModel.getButtonName() == ZIMKitInputButtonName.VIDEO_CALL) {
                     showBottomCallDialog(true);
                 } else if (itemModel.getButtonName() == ZIMKitInputButtonName.FILE) {
                     pickFileToSend();
@@ -749,8 +756,9 @@ public class ZIMKitMessageFragment extends BaseFragment<ZimkitFragmentMessageBin
                         pickPhotoToSend(REQUEST_CODE_PHOTO);
                     } else if (itemModel.getButtonName() == ZIMKitInputButtonName.TAKE_PHOTO) {
                         useCameraTakePhotoToSend();
-                    } else if (itemModel.getButtonName() == ZIMKitInputButtonName.VIDEO_CALL
-                        || itemModel.getButtonName() == ZIMKitInputButtonName.VOICE_CALL) {
+                    }else if (itemModel.getButtonName() == ZIMKitInputButtonName.VOICE_CALL) {
+                        mListener.onStartCall("startCall");
+                    }  else if (itemModel.getButtonName() == ZIMKitInputButtonName.VIDEO_CALL) {
                         showBottomCallDialog(false);
                     } else if (itemModel.getButtonName() == ZIMKitInputButtonName.FILE) {
                         pickFileToSend();
@@ -830,13 +838,13 @@ public class ZIMKitMessageFragment extends BaseFragment<ZimkitFragmentMessageBin
 
             // group call not support yet
             if (conversationType == ZIMConversationType.GROUP) {
-                buttonNames.remove(ZIMKitInputButtonName.VOICE_CALL);
-                buttonNames.remove(ZIMKitInputButtonName.VIDEO_CALL);
+           //     buttonNames.remove(ZIMKitInputButtonName.VOICE_CALL);
+             //   buttonNames.remove(ZIMKitInputButtonName.VIDEO_CALL);
             }
             // VIDEO_CALL and VOICE_CALL only need one button
             if (buttonNames.contains(ZIMKitInputButtonName.VOICE_CALL) && buttonNames.contains(
                 ZIMKitInputButtonName.VIDEO_CALL)) {
-                buttonNames.remove(ZIMKitInputButtonName.VOICE_CALL);
+               // buttonNames.remove(ZIMKitInputButtonName.VOICE_CALL);
             }
 
             if (buttonNames.size() > maxButtons) {

@@ -20,6 +20,11 @@ android {
             sourceCompatibility JavaVersion.VERSION_1_8
             targetCompatibility JavaVersion.VERSION_1_8
         }
+
+        ndk {
+            // Explicitly only pack ARM architectures for real mobile devices
+            abiFilters 'armeabi-v7a', 'arm64-v8a'
+        }
     }
 
     lintOptions {
@@ -73,6 +78,9 @@ repositories {
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation fileTree(dir: 'libs', include: ['*.aar'])
+    implementation fileTree(dir: 'zj_libs', include: ['*.jar', '*.aar'])
+
+
 
 //    implementation files('libs/openDefault-12.5.0.aar')
 //    implementation files('libs/oauth-weixin-release.aar')

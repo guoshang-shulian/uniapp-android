@@ -162,7 +162,8 @@
   <string name="input_audio_press_hint">按住说话</string>
   <string name="input_audio_cancel_hint">松开发送，上滑取消</string>
   <string name="audio_record_cancel_tips">松开取消发送</string>
-  <string name="zimkit_avcall">音视频通话</string>
+  <string name="zimkit_avcall">语音会</string>
+  <string name="zimkit_product">产品</string>
   <string name="zimkit_video_call">视频通话</string>
   <string name="zimkit_audio_call">音频通话</string>
   <string name="zimkit_allow">允许</string>

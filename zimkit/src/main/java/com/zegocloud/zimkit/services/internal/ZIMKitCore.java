@@ -186,8 +186,8 @@ public class ZIMKitCore implements IZIMKitCore {
                 R.drawable.zimkit_input_btn_camera_expand));
         inputButtonMap.put(ZIMKitInputButtonName.VOICE_CALL,
             new ZIMKitInputButtonModel(ZIMKitInputButtonName.VOICE_CALL, application, R.string.zimkit_avcall,
-                R.drawable.zimkit_input_btn_avcall, R.drawable.zimkit_input_btn_avcall,
-                R.drawable.zimkit_input_btn_avcall_expand));
+                R.drawable.call, R.drawable.call,
+                R.drawable.call));
         inputButtonMap.put(ZIMKitInputButtonName.VIDEO_CALL,
             new ZIMKitInputButtonModel(ZIMKitInputButtonName.VIDEO_CALL, application, R.string.zimkit_avcall,
                 R.drawable.zimkit_input_btn_avcall, R.drawable.zimkit_input_btn_avcall,
@@ -196,6 +196,10 @@ public class ZIMKitCore implements IZIMKitCore {
             new ZIMKitInputButtonModel(ZIMKitInputButtonName.FILE, application, R.string.zimkit_file,
                 R.drawable.zimkit_input_btn_file, R.drawable.zimkit_input_btn_file,
                 R.drawable.zimkit_input_btn_file_expand));
+        inputButtonMap.put(ZIMKitInputButtonName.PRODUCT,
+                new ZIMKitInputButtonModel(ZIMKitInputButtonName.PRODUCT, application, R.string.zimkit_product,
+                        R.drawable.box, R.drawable.box,
+                        R.drawable.box));
     }
 
     @Override

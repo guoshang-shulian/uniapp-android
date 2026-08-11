@@ -16,13 +16,21 @@ import android.util.Log;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.alibaba.fastjson.JSONObject;
+import com.google.gson.Gson;
 import com.netease.yunxin.kit.alog.ALog;
 import com.netease.yunxin.kit.common.ui.utils.ToastX;
 import com.netease.yunxin.kit.entertainment.common.RoomConstants;
+import com.netease.yunxin.kit.entertainment.common.model.RoomModel;
+import com.netease.yunxin.kit.entertainment.common.utils.OneOnOneUtils;
+import com.netease.yunxin.kit.voiceroomkit.api.NEVoiceRoomCallback;
+import com.netease.yunxin.kit.voiceroomkit.api.NEVoiceRoomKit;
+import com.netease.yunxin.kit.voiceroomkit.api.model.NEVoiceRoomInfo;
 import com.netease.yunxin.kit.voiceroomkit.ui.AppUtils;
 import com.netease.yunxin.kit.voiceroomkit.ui.LoginUtil;
 import com.netease.yunxin.kit.entertainment.common.http.ECHttpService;
@@ -30,16 +38,23 @@ import com.netease.yunxin.kit.entertainment.common.model.ECModelResponse;
 import com.netease.yunxin.kit.entertainment.common.model.NemoAccount;
 import com.netease.yunxin.kit.voiceroomkit.ui.activity.VoiceRoomCreateActivity;
 import com.netease.yunxin.kit.voiceroomkit.ui.activity.VoiceRoomListActivity;
+import com.netease.yunxin.kit.voiceroomkit.ui.base.utils.FloatPlayManager;
+import com.netease.yunxin.kit.voiceroomkit.ui.utils.NavUtils;
 import com.zegocloud.uikit.plugin.signaling.ZegoSignalingPlugin;
 //import com.zegocloud.uikit.prebuilt.liveaudioroom.internal.service.LiveAudioRoomManager;
 import com.zegocloud.zimkit.common.ZIMKitRouter;
 import com.zegocloud.zimkit.common.enums.ZIMKitConversationType;
+import com.zegocloud.zimkit.components.message.ui.BackToUniappCallback;
+import com.zegocloud.zimkit.components.message.ui.ZIMKitMessageActivity;
+import com.zegocloud.zimkit.components.message.ui.ZIMKitMessageFragment;
 import com.zegocloud.zimkit.services.ZIMKit;
 import com.zegocloud.zimkit.services.ZIMKitDelegate;
 import com.zegocloud.zimkit.services.callback.CreateGroupCallback;
 import com.zegocloud.zimkit.services.callback.JoinGroupCallback;
 import com.zegocloud.zimkit.services.model.ZIMKitConversation;
 import com.zegocloud.zimkit.services.model.ZIMKitGroupInfo;
+
+import org.json.JSONException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -64,6 +79,9 @@ import io.dcloud.uniplugin.activity.LiveActivity;
 import io.dcloud.uniplugin.activity.NativePageActivity;
 import retrofit2.Call;
 import retrofit2.Callback;
+// Add these imports at the top of your file if they are missing
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 
 
 public class TestModule extends UniModule {
@@ -77,6 +95,8 @@ public class TestModule extends UniModule {
     String avatar;
 
     int logged = 0;
+
+    String groupId = "";
 
 
     public void neteaseLogin(){
@@ -338,11 +358,80 @@ public class TestModule extends UniModule {
 
     @UniJSMethod(uiThread = true)
     public void startChat(String conversationID) {
+        groupId = "";
         ZIMKitRouter.toMessageActivity(mUniSDKInstance.getContext(), conversationID, ZIMKitConversationType.ZIMKitConversationTypePeer);
     }
+    public  RoomModel neVoiceRoomInfo2RoomInfo(NEVoiceRoomInfo voiceRoomInfo) {
+        if (voiceRoomInfo == null) {
+            return null;
+        }
+        RoomModel roomModel = new RoomModel();
+        roomModel.setRoomUuid(voiceRoomInfo.getLiveModel().getRoomUuid());
+        Integer audienceCount = voiceRoomInfo.getLiveModel().getAudienceCount();
+        roomModel.setAudienceCount((audienceCount == null ? 0 : audienceCount) + 1);
+        roomModel.setCover(voiceRoomInfo.getLiveModel().getCover());
+        roomModel.setLiveRecordId(voiceRoomInfo.getLiveModel().getLiveRecordId());
+        roomModel.setRoomName(voiceRoomInfo.getLiveModel().getLiveTopic());
+        roomModel.setAnchorAvatar(voiceRoomInfo.getAnchor().getAvatar());
+        roomModel.setAnchorNick(voiceRoomInfo.getAnchor().getNick());
+        roomModel.setAnchorUserUuid(voiceRoomInfo.getAnchor().getAccount());
+        roomModel.setGameName(voiceRoomInfo.getLiveModel().getGameName());
+        return roomModel;
+    }
+
 
     @UniJSMethod(uiThread = true)
     public void startGroupChat(String conversationID) {
+        ZIMKitMessageActivity.setOnNativeDataListener(new BackToUniappCallback() {
+            @Override
+            public void onDataReceived(String data) {
+                System.out.println("reached level 1");
+
+                // Pass the raw data string directly
+                JSONObject jsonObject = JSON.parseObject(data);
+
+                System.out.println( data);
+                System.out.println("JSON Object: " + jsonObject.toString());
+                System.out.println("reached level 2");
+
+                // 3. Extract just the "data" object string block
+                String dataJson = jsonObject.getJSONObject("data").toString();
+                // 4. Decode it directly into your NEVoiceRoomInfo model
+                Gson gson = new Gson();
+               NEVoiceRoomInfo voiceRoomInfo = gson.fromJson(dataJson, NEVoiceRoomInfo.class);
+               System.out.println(voiceRoomInfo);
+               System.out.println(voiceRoomInfo.getAnchor());
+               System.out.println("reached level 3");
+               RoomModel info = neVoiceRoomInfo2RoomInfo(voiceRoomInfo);
+                System.out.println("reached level 4");
+                System.out.println(info);
+                LoginUtil.join( mUniSDKInstance.getContext(),info,avatar,userName);
+            }
+
+            @Override
+            public void onStartCall(String data){
+
+            }
+        });
+
+        ZIMKitMessageFragment.setOnNativeDataListener(new BackToUniappCallback() {
+            @Override
+            public void onDataReceived(String data) {
+
+            }
+
+            @Override
+            public void onStartCall(String data){
+                Intent intent = new Intent(mUniSDKInstance.getContext(), VoiceRoomCreateActivity.class);
+                intent.putExtra(RoomConstants.INTENT_IS_OVERSEA, AppConfig.isOversea());
+                intent.putExtra("groupId", conversationID);
+                intent.putExtra(RoomConstants.INTENT_KEY_CONFIG_ID, AppConfig.getVoiceRoomConfigId());
+                intent.putExtra(RoomConstants.INTENT_USER_NAME, AppUtils.getUserName());
+                intent.putExtra(RoomConstants.INTENT_AVATAR, AppUtils.getAvatar());
+                mUniSDKInstance.getContext().startActivity(intent);
+            }
+        });
+//        groupId = conversationID;
         ZIMKitRouter.toMessageActivity(mUniSDKInstance.getContext(), conversationID, ZIMKitConversationType.ZIMKitConversationTypeGroup);
     }
 
@@ -353,6 +442,7 @@ public class TestModule extends UniModule {
             @Override
             public void onJoinGroup(ZIMKitGroupInfo groupInfo, ZIMError error) {
                 if (error.code == ZIMErrorCode.SUCCESS || error.code == ZIMErrorCode.MEMBER_IS_ALREADY_IN_THE_GROUP) {
+                    groupId = conversationID;
                     ZIMKitRouter.toMessageActivity(mUniSDKInstance.getContext(), conversationID, ZIMKitConversationType.ZIMKitConversationTypeGroup);
                 }
             }

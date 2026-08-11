@@ -24,6 +24,7 @@
   <string name="zimkit_message_unknown">This type of message is not supported, Please upgrade to the latest version.</string>
   <string name="zimkit_open_file_tips">Select an app to open the file</string>
   <string name="zimkit_title_cancel">Cancel</string>
+  <string name="zimkit_product">Product</string>
 
   <string name="zimkit_start_chat">New Chat</string>
   <string name="zimkit_empty">No chats. Start chatting now.</string>

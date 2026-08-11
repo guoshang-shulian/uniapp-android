@@ -40,6 +40,7 @@ public abstract class MultiCreateRoomActivity extends BaseActivity {
   protected int configId;
   protected String username;
   protected String avatar;
+  public String groupId;
 
   @Override
   protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -51,6 +52,7 @@ public abstract class MultiCreateRoomActivity extends BaseActivity {
     configId = getIntent().getIntExtra(RoomConstants.INTENT_KEY_CONFIG_ID, 0);
     username = getIntent().getStringExtra(RoomConstants.INTENT_USER_NAME);
     avatar = getIntent().getStringExtra(RoomConstants.INTENT_AVATAR);
+    groupId = getIntent().getStringExtra("groupId");
     getRoomDefault();
       binding.etRoomName.setText("897987976weq13");
       setRoomBg("https://yx-web-nosdn.netease.im/common/855b98bd26ce3164b88f70835a2e8983/Group%202795.png");
@@ -173,14 +175,14 @@ public abstract class MultiCreateRoomActivity extends BaseActivity {
   protected void createRoomInner() {
     NECreateVoiceRoomParams createVoiceRoomParams =
         new NECreateVoiceRoomParams(
-            binding.etRoomName.getText().toString(),
+            binding.etRoomName.getText().toString()+".v."+groupId,
             username,
             COUNT_SEAT,
             getSeatMode(),
             configId,
-            cover,
+            cover, groupId,
             getLiveType(),
-            null);
+                groupId);
     NEVoiceRoomKit.getInstance()
         .createRoom(
             createVoiceRoomParams,
