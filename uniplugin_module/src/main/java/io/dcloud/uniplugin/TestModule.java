@@ -500,12 +500,14 @@ public class TestModule extends UniModule {
     @UniJSMethod(uiThread = true)
     public void joinCall(JSONObject options, UniJSCallback callback) {
         Context context = mUniSDKInstance.getContext();
-        Intent intent = new Intent(context, VoiceRoomListActivity.class);
-        intent.putExtra(RoomConstants.INTENT_IS_OVERSEA, AppConfig.isOversea());
-        intent.putExtra(RoomConstants.INTENT_KEY_CONFIG_ID, AppConfig.getVoiceRoomConfigId());
-        intent.putExtra(RoomConstants.INTENT_USER_NAME, AppUtils.getUserName());
-        intent.putExtra(RoomConstants.INTENT_AVATAR, AppUtils.getAvatar());
-        context.startActivity(intent);
+        System.out.println("level here -->");
+        System.out.println(options.getString("meetingId"));
+//        Intent intent = new Intent(context, VoiceRoomListActivity.class);
+//        intent.putExtra(RoomConstants.INTENT_IS_OVERSEA, AppConfig.isOversea());
+//        intent.putExtra(RoomConstants.INTENT_KEY_CONFIG_ID, AppConfig.getVoiceRoomConfigId());
+//        intent.putExtra(RoomConstants.INTENT_USER_NAME, AppUtils.getUserName());
+//        intent.putExtra(RoomConstants.INTENT_AVATAR, AppUtils.getAvatar());
+//        context.startActivity(intent);
 
 
 //        Intent intent = new Intent(context, VoiceRoomCreateActivity.class);
