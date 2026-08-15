@@ -19,7 +19,12 @@
     <uses-sdk tools:overrideLibrary="com.bytedance.gromore, com.bytedance.sdk.openadsdk, com.bytedance.tools" />
 
 
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <!-- 相册权限适配：zimkit 等三方模块会把 WRITE_EXTERNAL_STORAGE 裁剪为 maxSdkVersion="29"，
+         导致 Android 11/12（API 30+）上运行时申请该权限被系统直接拒绝、选图静默失败。
+         这里强制以本声明为准，保证 WRITE_EXTERNAL_STORAGE 在低版本机型上仍然有效 -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        tools:node="replace" />
 
     <uses-feature android:name="android.hardware.camera" />
     <uses-feature android:name="android.hardware.camera.autofocus" />
