@@ -18,12 +18,13 @@ jobs:
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: 'gradle' # 👈 This enables automatic caching of Gradle dependencies
+          java-version: "17"
+          distribution: "temurin"
+          cache: "gradle" # 👈 This enables automatic caching of Gradle dependencies
 
       - name: Build with Gradle
-        run: ./gradlew assembleRelease
+        # run: ./gradlew assembleRelease
+        run: ./gradlew assembleDebug
 
       - name: CheckSize
         run: du -sh app/build/outputs/apk/release/app-release.apk
