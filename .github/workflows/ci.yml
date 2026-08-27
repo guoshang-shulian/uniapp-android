@@ -27,7 +27,7 @@ jobs:
         # run: ./gradlew assembleDebug
 
       - name: CheckSize
-        run: du -sh app/build/outputs/apk/release/app-debug.apk
+        run: du -sh app/build/outputs/apk/
 
       - name: Move to  remote server
         env:
