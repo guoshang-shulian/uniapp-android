@@ -23,7 +23,7 @@ jobs:
           cache: "gradle" # 👈 This enables automatic caching of Gradle dependencies
 
       - name: Build with Gradle
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleRelease
         # run: ./gradlew assembleDebug
 
       - name: CheckSize
@@ -42,4 +42,4 @@ jobs:
           echo "SSH_KEY"
           echo "$SSH_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no app/build/outputs/apk/debug/app-debug:wq.apk ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/av/
+          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no app/build/outputs/apk/release/app-release.apk ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/av/
