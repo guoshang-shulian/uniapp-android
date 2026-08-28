@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center"
+    android:background="@drawable/shape_native_draw_container_bg"
+    android:gravity="center_horizontal"
+    android:orientation="vertical"
+    android:layout_marginStart="80dp"
+    android:layout_marginEnd="80dp"
+    android:paddingStart="48dp"
+    android:paddingTop="24dp"
+    android:paddingEnd="48dp"
+    android:paddingBottom="24dp">
+
+    <TextView
+        android:id="@+id/tube_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:gravity="center"
+        android:maxWidth="160dp"
+        android:singleLine="true"
+        android:textColor="#FF6E00"
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tube_desc"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:maxLines="1"
+        android:textColor="#CCFF6E00"
+        android:textSize="14sp" />
+
+    <ImageView
+        android:id="@+id/tube_cover"
+        android:layout_width="120dp"
+        android:layout_height="120dp"
+        android:layout_marginTop="12dp" />
+
+    <TextView
+        android:id="@+id/tube_confirm"
+        android:layout_width="200dp"
+        android:layout_height="48dp"
+        android:layout_marginTop="20dp"
+        android:background="#FF6E00"
+        android:gravity="center"
+        android:text="@android:string/ok"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp" />
+
+    <TextView
+        android:id="@+id/tube_close"
+        android:layout_width="200dp"
+        android:layout_height="48dp"
+        android:layout_marginTop="20dp"
+        android:background="#FF4E4641"
+        android:gravity="center"
+        android:text="@android:string/cancel"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp" />
+
+</LinearLayout>

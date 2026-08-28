@@ -80,7 +80,8 @@ dependencies {
     implementation fileTree(dir: 'libs', include: ['*.aar'])
     implementation fileTree(dir: 'zj_libs', include: ['*.jar', '*.aar'])
 
-
+    implementation 'com.pangle.cn:pangrowth-base:2.9.0.5'
+    implementation 'com.pangle.cn:pangrowth-djx-sdk-lite:2.9.0.5'
 
 //    implementation files('libs/openDefault-12.5.0.aar')
 //    implementation files('libs/oauth-weixin-release.aar')

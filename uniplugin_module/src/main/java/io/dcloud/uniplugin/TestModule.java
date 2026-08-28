@@ -9,15 +9,10 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
-import android.os.Handler;
-import android.os.Looper;
 import android.provider.Settings;
 import android.util.Log;
 import android.widget.Toast;
-
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.appcompat.app.AlertDialog;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
@@ -27,9 +22,6 @@ import com.netease.yunxin.kit.alog.ALog;
 import com.netease.yunxin.kit.common.ui.utils.ToastX;
 import com.netease.yunxin.kit.entertainment.common.RoomConstants;
 import com.netease.yunxin.kit.entertainment.common.model.RoomModel;
-import com.netease.yunxin.kit.entertainment.common.utils.OneOnOneUtils;
-import com.netease.yunxin.kit.voiceroomkit.api.NEVoiceRoomCallback;
-import com.netease.yunxin.kit.voiceroomkit.api.NEVoiceRoomKit;
 import com.netease.yunxin.kit.voiceroomkit.api.model.NEVoiceRoomInfo;
 import com.netease.yunxin.kit.voiceroomkit.ui.AppUtils;
 import com.netease.yunxin.kit.voiceroomkit.ui.LoginUtil;
@@ -77,11 +69,16 @@ import io.dcloud.uniplugin.activity.AudioRoomActivity;
 import io.dcloud.uniplugin.activity.ConversationActivity;
 import io.dcloud.uniplugin.activity.LiveActivity;
 import io.dcloud.uniplugin.activity.NativePageActivity;
+import io.dcloud.uniplugin.activity.TubeActivity;
+import io.dcloud.uniplugin.activity.task.ContentTaskActivity;
+import io.dcloud.uniplugin.others.SPUtil;
 import retrofit2.Call;
 import retrofit2.Callback;
 // Add these imports at the top of your file if they are missing
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.zj.zjsdk.ZJConfig;
+import com.zj.zjsdk.ZjSdk;
 
 
 public class TestModule extends UniModule {
@@ -96,8 +93,9 @@ public class TestModule extends UniModule {
 
     int logged = 0;
 
-    String groupId = "";
+    private Context mainApplication;
 
+    String groupId = "";
 
     public void neteaseLogin(){
         System.out.println("netease-login info");
@@ -357,9 +355,31 @@ public class TestModule extends UniModule {
     }
 
     @UniJSMethod(uiThread = true)
+    public void startDuanju(String conversationID) {
+        Intent intent = new Intent();
+        intent.setClassName(mUniSDKInstance.getContext(), "com.cool.dianshang.data.TubeActivity");
+        intent.putExtra("key", "value");
+        mUniSDKInstance.getContext().startActivity(intent);
+    }
+
+    @UniJSMethod(uiThread = true)
+    public void startVideo(String conversationID) {
+        mUniSDKInstance.getContext().startActivity(new Intent(mUniSDKInstance.getContext(), ContentTaskActivity.class));
+    }
+
+
+    @UniJSMethod(uiThread = true)
     public void startChat(String conversationID) {
-        groupId = "";
-        ZIMKitRouter.toMessageActivity(mUniSDKInstance.getContext(), conversationID, ZIMKitConversationType.ZIMKitConversationTypePeer);
+        try {
+             groupId = "";
+             ZIMKitRouter.toMessageActivity(
+                 mUniSDKInstance.getContext(),
+                 conversationID,
+                 ZIMKitConversationType.ZIMKitConversationTypePeer
+             );
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
     public  RoomModel neVoiceRoomInfo2RoomInfo(NEVoiceRoomInfo voiceRoomInfo) {
         if (voiceRoomInfo == null) {
@@ -382,6 +402,10 @@ public class TestModule extends UniModule {
 
     @UniJSMethod(uiThread = true)
     public void startGroupChat(String conversationID) {
+
+
+
+
         ZIMKitMessageActivity.setOnNativeDataListener(new BackToUniappCallback() {
             @Override
             public void onDataReceived(String data) {
