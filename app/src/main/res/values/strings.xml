@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">数慧云商1</string>
+    <string name="app_name">数慧云商</string>
     <string name="pattern">样式</string>
     <string name="pattern_toggle">切换样式</string>
     <string name="privacy_settings">隐私配置</string>
