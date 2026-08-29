@@ -78,6 +78,13 @@
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
             android:screenOrientation="portrait" />
 
+        <meta-data
+            android:name="DCLOUD_STREAMAPP_CHANNEL"
+            android:value="com.cool.dianshang|__UNI__F189BBA|1|google" />
+        <meta-data android:name="DCLOUD_UNI_AD" android:value="false" />
+
+
+
         <activity
             android:name="io.dcloud.uniplugin.activity.ConversationActivity"
             android:theme="@style/Theme.AppCompat"

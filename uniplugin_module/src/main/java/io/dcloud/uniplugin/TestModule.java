@@ -67,10 +67,13 @@ import io.dcloud.feature.uniapp.bridge.UniJSCallback;
 import io.dcloud.feature.uniapp.common.UniModule;
 import io.dcloud.uniplugin.activity.AudioRoomActivity;
 import io.dcloud.uniplugin.activity.ConversationActivity;
+import io.dcloud.uniplugin.activity.LastRoomLeave;
 import io.dcloud.uniplugin.activity.LiveActivity;
 import io.dcloud.uniplugin.activity.NativePageActivity;
 import io.dcloud.uniplugin.activity.TubeActivity;
+import io.dcloud.uniplugin.activity.reward.RewardedAds;
 import io.dcloud.uniplugin.activity.task.ContentTaskActivity;
+import io.dcloud.uniplugin.others.RandomString;
 import io.dcloud.uniplugin.others.SPUtil;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -362,9 +365,44 @@ public class TestModule extends UniModule {
         mUniSDKInstance.getContext().startActivity(intent);
     }
 
+    String randomId = "";
+
+    @UniJSMethod(uiThread = true)
+    public void startCountVideo(UniJSCallback callback) {
+        try {
+            SPUtil.getInstance().setContext(mUniSDKInstance.getContext());
+            randomId = RandomString.generate40();
+            RewardedAds.setRoomLeaveListener((new LastRoomLeave() {
+                @Override
+                public void onRoomLeft() {
+
+                }
+
+                @Override
+                public void triggerAd(String msg) {
+                    if (callback != null) {
+                        JSONObject result = new JSONObject();
+                        result.put("msg", msg);
+                        result.put("randomId", randomId);
+                        System.out.println("sent back to top");
+                        callback.invoke(result);
+                    }
+                   // System.out.println("triggered this one oo");
+
+                }
+            }));
+            RewardedAds mk = new RewardedAds();
+            mk.setContext((Activity) mUniSDKInstance.getContext());
+            mk.loadAd(true);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        // mUniSDKInstance.getContext().startActivity(new Intent(mUniSDKInstance.getContext(), ContentTaskActivity.class));
+    }
+
     @UniJSMethod(uiThread = true)
     public void startVideo(String conversationID) {
-        mUniSDKInstance.getContext().startActivity(new Intent(mUniSDKInstance.getContext(), ContentTaskActivity.class));
+         mUniSDKInstance.getContext().startActivity(new Intent(mUniSDKInstance.getContext(), ContentTaskActivity.class));
     }
 
 

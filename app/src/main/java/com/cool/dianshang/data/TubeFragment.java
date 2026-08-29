@@ -54,8 +54,8 @@ public class TubeFragment extends Fragment {
                 .isNewUser(false)        // 是否为新用户
                 .isOnlyICPNumber(false)  // 是否需要只有备案号内容，默认值false，穿山甲使用
                 .setUserId("87876867876876")   // 用户ID
-                .setFreeEpisodeCount(3) // 每个剧集前N集免费，默认为3
-                .setUnlockEpisodeCount(2)   // 每次解锁X集，默认为2
+                .setFreeEpisodeCount(10) // 每个剧集前N集免费，默认为3
+                .setUnlockEpisodeCount(10)   // 每次解锁X集，默认为2
                 .isHideTitleBar(true)   // 是否隐藏剧集主页的TitleBar，默认值false
                 .isDisableUnlockTipDialog(false) // 是否关闭SDK的解锁提示对话框，默认值false。true时可以在showAdIfNeeded回调中自定义提示对话框
                 .isDisableShowTubePanelEntry(false) // 是否关闭短剧播放页的选集入口，默认值false
