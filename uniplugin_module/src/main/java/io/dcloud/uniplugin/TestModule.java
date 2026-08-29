@@ -385,7 +385,7 @@ public class TestModule extends UniModule {
                         result.put("msg", msg);
                         result.put("randomId", randomId);
                         System.out.println("sent back to top");
-                        callback.invoke(result);
+                        callback.invokeAndKeepAlive(result);
                     }
                    // System.out.println("triggered this one oo");
 

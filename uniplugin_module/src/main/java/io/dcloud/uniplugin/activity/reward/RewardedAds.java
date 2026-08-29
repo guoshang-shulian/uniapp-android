@@ -168,8 +168,8 @@ public class RewardedAds implements ZJRewardedAdInteractionListener {
 
     @Override
     public void onRewardedAdClick() {
+        // 点击不等于观看完成，不再当 success 回调，避免误上报
         System.out.println("Reward clicked");
-        roomLeaveListener.triggerAd("success");
     }
 
     @Override
