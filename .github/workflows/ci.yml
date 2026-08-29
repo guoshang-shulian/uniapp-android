@@ -24,7 +24,7 @@ jobs:
 
       - name: Build with Gradle
         # run: ./gradlew assembleDebug
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleDebug
 
       - name: CheckSize
         run: ls app/build/outputs/apk/debug/
