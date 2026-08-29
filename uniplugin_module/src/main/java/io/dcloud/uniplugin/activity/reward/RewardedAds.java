@@ -174,11 +174,13 @@ public class RewardedAds implements ZJRewardedAdInteractionListener {
     @Override
     public void onRewardedAdShowError(int i, @NonNull String s) {
         System.out.println("onReward show clicked");
-        roomLeaveListener.triggerAd("success");
+        roomLeaveListener.triggerAd("fail");
     }
 
     @Override
     public void onRewardVerify(@NonNull String s) {
+
+        roomLeaveListener.triggerAd("success");
         System.out.println("verify clicked");
     }
 
