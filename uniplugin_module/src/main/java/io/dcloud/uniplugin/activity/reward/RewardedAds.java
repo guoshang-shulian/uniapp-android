@@ -13,6 +13,7 @@ import com.zj.zjsdk.api.v2.rewarded.ZJRewardedAdLoadListener;
 
 import io.dcloud.uniplugin.activity.LastRoomLeave;
 import io.dcloud.uniplugin.others.DataCenter;
+import io.dcloud.uniplugin.others.OkHttpRequest;
 import io.dcloud.uniplugin.others.SPUtil;
 
 public class RewardedAds implements ZJRewardedAdInteractionListener {
@@ -168,8 +169,8 @@ public class RewardedAds implements ZJRewardedAdInteractionListener {
 
     @Override
     public void onRewardedAdClick() {
+        // 点击不等于观看完成，不再当 success 回调，避免误上报
         System.out.println("Reward clicked");
-        roomLeaveListener.triggerAd("success");
     }
 
     @Override
@@ -180,8 +181,8 @@ public class RewardedAds implements ZJRewardedAdInteractionListener {
 
     @Override
     public void onRewardVerify(@NonNull String s) {
-
-        roomLeaveListener.triggerAd("success");
+        OkHttpRequest.sendRequest();
+       // roomLeaveListener.triggerAd("success");
         System.out.println("verify clicked");
     }
 

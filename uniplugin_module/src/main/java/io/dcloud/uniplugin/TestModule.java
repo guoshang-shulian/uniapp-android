@@ -73,6 +73,7 @@ import io.dcloud.uniplugin.activity.NativePageActivity;
 import io.dcloud.uniplugin.activity.TubeActivity;
 import io.dcloud.uniplugin.activity.reward.RewardedAds;
 import io.dcloud.uniplugin.activity.task.ContentTaskActivity;
+import io.dcloud.uniplugin.others.OkHttpRequest;
 import io.dcloud.uniplugin.others.RandomString;
 import io.dcloud.uniplugin.others.SPUtil;
 import retrofit2.Call;
@@ -368,10 +369,17 @@ public class TestModule extends UniModule {
     String randomId = "";
 
     @UniJSMethod(uiThread = true)
-    public void startCountVideo(UniJSCallback callback) {
+    public void startCountVideo(String accessToken,String url,UniJSCallback callback) {
         try {
+
+//           String accessToken = "eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyQ29udGV4dCI6IntcInVzZXJuYW1lXCI6XCIxMzI1MDgyMDg0NlwiLFwibmlja05hbWVcIjpcIjgyMDg0NlFZXCIsXCJmYWNlXCI6XCJodHRwczovL3Rlc3QuaW9ldmlzYS5jb20vcGljcy9wcm9maWxlLnBuZ1wiLFwiaWRcIjpcIjE5OTcxMTE5NjUzODU5NTgyODlcIixcImxvbmdUZXJtXCI6dHJ1ZSxcInJvbGVcIjpcIk1FTUJFUlwifSIsInN1YiI6IjEzMjUwODIwODQ2IiwiZXhwIjoxOTQzNTEyMDQyfQ.8aHzNHRocp5SOZXgOAZv2b5o9qmQe9ekn5szYjp0v3k";
+//            String url = "https://buyer-ceshi.shanxunsw.com/buyer/hashrate/package/task/ad/watch";
+
             SPUtil.getInstance().setContext(mUniSDKInstance.getContext());
             randomId = RandomString.generate40();
+            OkHttpRequest.url = url;
+            OkHttpRequest.accessToken = accessToken;
+            OkHttpRequest.id = randomId;
             RewardedAds.setRoomLeaveListener((new LastRoomLeave() {
                 @Override
                 public void onRoomLeft() {
@@ -385,7 +393,7 @@ public class TestModule extends UniModule {
                         result.put("msg", msg);
                         result.put("randomId", randomId);
                         System.out.println("sent back to top");
-                        callback.invoke(result);
+                        callback.invokeAndKeepAlive(result);
                     }
                    // System.out.println("triggered this one oo");
 

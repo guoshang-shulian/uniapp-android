@@ -80,7 +80,7 @@
 
         <meta-data
             android:name="DCLOUD_STREAMAPP_CHANNEL"
-            android:value="com.cool.dianshang|__UNI__F189BBA|1|google" />
+            android:value="com.cool.dianshang|__UNI__F189B8A|1|google" />
         <meta-data android:name="DCLOUD_UNI_AD" android:value="false" />
 
 
