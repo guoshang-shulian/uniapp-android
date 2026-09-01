@@ -460,18 +460,6 @@ public class TestModule extends UniModule {
         return roomModel;
     }
 
-    @UniJSMethod(uiThread = true)
-    public void chooseImage(UniJSCallback callback) {
-        System.out.println("group chat reached here");
-        this.jsCallback = callback;
-
-        Activity activity = (Activity) mWXSDKInstance.getContext();
-
-        // 2. Open standard Android Gallery picker without breaking context
-        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-        intent.setType("image/*");
-        activity.startActivityForResult(Intent.createChooser(intent, "Select Picture"), REQUEST_CODE_CHOOSE_IMAGE);
-    }
 
     @UniJSMethod(uiThread = true)
     public void startGroupChat(String conversationID) {
@@ -529,6 +517,20 @@ public class TestModule extends UniModule {
     }
     private static final int REQUEST_CODE_CHOOSE_IMAGE = 4221;
     private UniJSCallback jsCallback;
+
+    @UniJSMethod(uiThread = true)
+    public void chooseImage(UniJSCallback callback) {
+        System.out.println("group chat reached here");
+        this.jsCallback = callback;
+
+        Activity activity = (Activity) mWXSDKInstance.getContext();
+
+        // 2. Open standard Android Gallery picker without breaking context
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("image/*");
+        activity.startActivityForResult(Intent.createChooser(intent, "Select Picture"), REQUEST_CODE_CHOOSE_IMAGE);
+    }
+
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -539,7 +541,8 @@ public class TestModule extends UniModule {
 
                 // Convert the native Android URI into the exact uni-app temp file layout string
                 String formattedUniAppPath = getUniAppFormattedPath(selectedImageUri);
-
+                System.out.println(formattedUniAppPath);
+                System.out.println("specialized url");
                 if (formattedUniAppPath != null) {
                     // Structure the exact JSON response shape expected by uni-app
                     JSONObject response = new JSONObject();
