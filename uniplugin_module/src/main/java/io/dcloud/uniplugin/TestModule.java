@@ -48,6 +48,9 @@ import com.zegocloud.zimkit.services.model.ZIMKitGroupInfo;
 //import  io.dcloud.uniplugin.
 import org.json.JSONException;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -76,6 +79,7 @@ import io.dcloud.uniplugin.activity.NativePageActivity;
 import io.dcloud.uniplugin.others.OkHttpRequest;
 import io.dcloud.uniplugin.others.RandomString;
 import io.dcloud.uniplugin.others.SPUtil;
+import io.dcloud.uniplugin.others.UniImageResponse;
 import retrofit2.Call;
 import retrofit2.Callback;
 // Add these imports at the top of your file if they are missing
@@ -103,6 +107,7 @@ public class TestModule extends UniModule {
 
     public void neteaseLogin(){
         System.out.println("netease-login info");
+        System.out.println("netease-login info");
         createAccount(
                 2,
                 new Callback<ECModelResponse<NemoAccount>>() {
@@ -129,6 +134,16 @@ public class TestModule extends UniModule {
                     }
                 });
     }
+
+    @UniJSMethod(uiThread = false)
+    public static boolean isHuaweiOS() {
+        String manufacturer = android.os.Build.MANUFACTURER;
+        String brand = android.os.Build.BRAND;
+
+        return (manufacturer != null && manufacturer.equalsIgnoreCase("huawei"))
+                || (brand != null && brand.equalsIgnoreCase("huawei"));
+    }
+
     public void neteaseLogout(){
         LoginUtil.logout();
     }
@@ -445,12 +460,21 @@ public class TestModule extends UniModule {
         return roomModel;
     }
 
+    @UniJSMethod(uiThread = true)
+    public void chooseImage(UniJSCallback callback) {
+        System.out.println("group chat reached here");
+        this.jsCallback = callback;
+
+        Activity activity = (Activity) mWXSDKInstance.getContext();
+
+        // 2. Open standard Android Gallery picker without breaking context
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("image/*");
+        activity.startActivityForResult(Intent.createChooser(intent, "Select Picture"), REQUEST_CODE_CHOOSE_IMAGE);
+    }
 
     @UniJSMethod(uiThread = true)
     public void startGroupChat(String conversationID) {
-
-
-
 
         ZIMKitMessageActivity.setOnNativeDataListener(new BackToUniappCallback() {
             @Override
@@ -501,10 +525,68 @@ public class TestModule extends UniModule {
                 mUniSDKInstance.getContext().startActivity(intent);
             }
         });
-//        groupId = conversationID;
         ZIMKitRouter.toMessageActivity(mUniSDKInstance.getContext(), conversationID, ZIMKitConversationType.ZIMKitConversationTypeGroup);
     }
+    private static final int REQUEST_CODE_CHOOSE_IMAGE = 4221;
+    private UniJSCallback jsCallback;
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
 
+        if (requestCode == REQUEST_CODE_CHOOSE_IMAGE && resultCode == Activity.RESULT_OK && data != null) {
+            Uri selectedImageUri = data.getData();
+            if (selectedImageUri != null && jsCallback != null) {
+
+                // Convert the native Android URI into the exact uni-app temp file layout string
+                String formattedUniAppPath = getUniAppFormattedPath(selectedImageUri);
+
+                if (formattedUniAppPath != null) {
+                    // Structure the exact JSON response shape expected by uni-app
+                    JSONObject response = new JSONObject();
+                    List<String> tempFilePaths = new ArrayList<>();
+                    tempFilePaths.add(formattedUniAppPath);
+                    response.put("tempFilePaths", tempFilePaths);
+
+                    // Send the structural payload back to the Vue code
+                    jsCallback.invoke(response);
+                }
+            }
+        }
+    }
+
+    private String getUniAppFormattedPath(Uri uri) {
+        try {
+            Context context = mWXSDKInstance.getContext();
+            InputStream inputStream = context.getContentResolver().openInputStream(uri);
+            if (inputStream == null) return null;
+
+            // Target directory mimicking the log: sandbox/doc/uniapp_temp/
+            File uniAppDocDir = new File(context.getExternalFilesDir(null), "apps/__UNI__F189B8A/doc/uniapp_temp");
+            if (!uniAppDocDir.exists()) {
+                uniAppDocDir.mkdirs();
+            }
+
+            // Replicate the randomized file name footprint
+            String fileName = System.currentTimeMillis() + "_NATIVE_PICKED.jpg";
+            File destinationFile = new File(uniAppDocDir, fileName);
+
+            FileOutputStream outputStream = new FileOutputStream(destinationFile);
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, bytesRead);
+            }
+            outputStream.close();
+            inputStream.close();
+
+            // Format exactly like uni-app logs: file:///storage/emulated/0/...
+            return "file://" + destinationFile.getAbsolutePath();
+
+        } catch (Exception e) {
+            Log.e("UniAppPlugin", "Failed copying to uni-app environment layout", e);
+            return null;
+        }
+    }
     @UniJSMethod(uiThread = true)
     public void joinGroupChat(String conversationID) {
 
@@ -707,6 +789,8 @@ public class TestModule extends UniModule {
                         new com.google.gson.Gson().toJson(conversationList)
                 );
                 JSONObject payload = new JSONObject();
+                System.out.println(uniArray);
+                System.out.println("list is above");
                 payload.put("list", uniArray);
 
                 // Package into an event channel payload box
@@ -1051,14 +1135,14 @@ public class TestModule extends UniModule {
         return data;
     }
 
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if(requestCode == REQUEST_CODE && data.hasExtra("respond")) {
-            Log.e("TestModule", "原生页面返回----"+data.getStringExtra("respond"));
-        } else {
-            super.onActivityResult(requestCode, resultCode, data);
-        }
-    }
+//    @Override
+//    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+//        if(requestCode == REQUEST_CODE && data.hasExtra("respond")) {
+//            Log.e("TestModule", "原生页面返回----"+data.getStringExtra("respond"));
+//        } else {
+//            super.onActivityResult(requestCode, resultCode, data);
+//        }
+//    }
 
     @UniJSMethod (uiThread = true)
     public void gotoNativePage(){
