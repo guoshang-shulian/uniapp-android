@@ -107,15 +107,15 @@
 <!--            android:name="DCLOUD_WEEX_MULTI_PROCESS"-->
 <!--            android:value="false" />-->
 
-        <provider
-            android:name="com.bytedance.sdk.openadsdk.TTFileProvider"
-            android:authorities="${applicationId}.TTFileProvider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/pangle_file_paths" />
-        </provider>
+<!--        <provider-->
+<!--            android:name="com.bytedance.sdk.openadsdk.TTFileProvider"-->
+<!--            android:authorities="${applicationId}.TTFileProvider"-->
+<!--            android:exported="false"-->
+<!--            android:grantUriPermissions="true">-->
+<!--            <meta-data-->
+<!--                android:name="android.support.FILE_PROVIDER_PATHS"-->
+<!--                android:resource="@xml/pangle_file_paths" />-->
+<!--        </provider>-->
 
         <!-- 应用入口 -->
         <activity

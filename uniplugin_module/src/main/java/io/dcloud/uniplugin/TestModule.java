@@ -45,7 +45,7 @@ import com.zegocloud.zimkit.services.callback.CreateGroupCallback;
 import com.zegocloud.zimkit.services.callback.JoinGroupCallback;
 import com.zegocloud.zimkit.services.model.ZIMKitConversation;
 import com.zegocloud.zimkit.services.model.ZIMKitGroupInfo;
-
+//import  io.dcloud.uniplugin.
 import org.json.JSONException;
 
 import java.util.ArrayList;
@@ -70,9 +70,9 @@ import io.dcloud.uniplugin.activity.ConversationActivity;
 import io.dcloud.uniplugin.activity.LastRoomLeave;
 import io.dcloud.uniplugin.activity.LiveActivity;
 import io.dcloud.uniplugin.activity.NativePageActivity;
-import io.dcloud.uniplugin.activity.TubeActivity;
-import io.dcloud.uniplugin.activity.reward.RewardedAds;
-import io.dcloud.uniplugin.activity.task.ContentTaskActivity;
+//import io.dcloud.uniplugin.activity.TubeActivity;
+//import io.dcloud.uniplugin.activity.reward.RewardedAds;
+//import io.dcloud.uniplugin.activity.task.ContentTaskActivity;
 import io.dcloud.uniplugin.others.OkHttpRequest;
 import io.dcloud.uniplugin.others.RandomString;
 import io.dcloud.uniplugin.others.SPUtil;
@@ -80,9 +80,9 @@ import retrofit2.Call;
 import retrofit2.Callback;
 // Add these imports at the top of your file if they are missing
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
-import com.zj.zjsdk.ZJConfig;
-import com.zj.zjsdk.ZjSdk;
+//import com.alibaba.fastjson.JSONObject;
+//import com.zj.zjsdk.ZJConfig;
+//import com.zj.zjsdk.ZjSdk;
 
 
 public class TestModule extends UniModule {
@@ -380,28 +380,28 @@ public class TestModule extends UniModule {
             OkHttpRequest.url = url;
             OkHttpRequest.accessToken = accessToken;
             OkHttpRequest.id = randomId;
-            RewardedAds.setRoomLeaveListener((new LastRoomLeave() {
-                @Override
-                public void onRoomLeft() {
-
-                }
-
-                @Override
-                public void triggerAd(String msg) {
-                    if (callback != null) {
-                        JSONObject result = new JSONObject();
-                        result.put("msg", msg);
-                        result.put("randomId", randomId);
-                        System.out.println("sent back to top");
-                        callback.invokeAndKeepAlive(result);
-                    }
-                   // System.out.println("triggered this one oo");
-
-                }
-            }));
-            RewardedAds mk = new RewardedAds();
-            mk.setContext((Activity) mUniSDKInstance.getContext());
-            mk.loadAd(true);
+//            RewardedAds.setRoomLeaveListener((new LastRoomLeave() {
+//                @Override
+//                public void onRoomLeft() {
+//
+//                }
+//
+//                @Override
+//                public void triggerAd(String msg) {
+//                    if (callback != null) {
+//                        JSONObject result = new JSONObject();
+//                        result.put("msg", msg);
+//                        result.put("randomId", randomId);
+//                        System.out.println("sent back to top");
+//                        callback.invokeAndKeepAlive(result);
+//                    }
+//                   // System.out.println("triggered this one oo");
+//
+//                }
+//            }));
+//            RewardedAds mk = new RewardedAds();
+//            mk.setContext((Activity) mUniSDKInstance.getContext());
+//            mk.loadAd(true);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -410,7 +410,7 @@ public class TestModule extends UniModule {
 
     @UniJSMethod(uiThread = true)
     public void startVideo(String conversationID) {
-         mUniSDKInstance.getContext().startActivity(new Intent(mUniSDKInstance.getContext(), ContentTaskActivity.class));
+//         mUniSDKInstance.getContext().startActivity(new Intent(mUniSDKInstance.getContext(), ContentTaskActivity.class));
     }
 
 
@@ -664,7 +664,7 @@ public class TestModule extends UniModule {
                 jsCallback.invoke(result);
             }
         });
-        neteaseLogin();
+        //neteaseLogin();
     }
 
     @UniJSMethod(uiThread = false)
@@ -778,7 +778,7 @@ public class TestModule extends UniModule {
 
             // 2. Trigger Zego's official socket disconnect clean routine
             ZIMKit.disconnectUser();
-            neteaseLogout();
+            //neteaseLogout();
 
             // 3. Clear your native class memory status tracking flags
             isDelegateRegistered = false;
