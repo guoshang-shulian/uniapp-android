@@ -3,8 +3,10 @@ package io.dcloud.uniplugin.activity;
 import android.Manifest;
 import android.app.PictureInPictureParams;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
@@ -12,6 +14,11 @@ import android.util.Rational;
 import android.view.View;
 import android.widget.ImageView;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.PickVisualMediaRequest;
+import androidx.activity.result.contract.ActivityResultContracts;
+
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
@@ -24,7 +31,12 @@ import com.google.gson.JsonObject;
 //import com.zegocloud.uikit.prebuilt.liveaudioroom.core.ZegoMenuBarButtonName;
 //import com.zegocloud.uikit.prebuilt.liveaudioroom.internal.service.RoomLeaveListener;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+
 import io.dcloud.uniplugin.TestModule;
+import io.dcloud.uniplugin.others.UniImageResponse;
 import uni.dcloud.io.uniplugin_module.R;
 //import com.zegocloud.uikit.prebuilt.liveaudioroom.ZegoMenuBarButtonName;
 
@@ -43,9 +55,71 @@ public class AudioRoomActivity extends AppCompatActivity {
     private ImageView ivLogo;
 
 
-//    private  ZegoUIKitPrebuiltLiveAudioRoomFragment fragment;
+    //    private  ZegoUIKitPrebuiltLiveAudioRoomFragment fragment;
     private static LastRoomLeave roomLeaveListener;
 
+    public interface UniChooseImageCallback {
+        void onSuccess(UniImageResponse res);
+    }
+
+    private UniChooseImageCallback currentCallback;
+
+    private final ActivityResultLauncher<Intent> galleryLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                    Uri selectedImageUri = result.getData().getData();
+                    if (selectedImageUri != null && currentCallback != null) {
+
+                        // Process the URI into a safe local string path
+                        String localizedPath = getFilePathFromUri(selectedImageUri);
+
+                        if (localizedPath != null) {
+                            // Pack it up structurally exactly like uni-app
+                            UniImageResponse response = new UniImageResponse();
+                            response.tempFilePaths.add(localizedPath);
+
+                            // Trigger the completion action
+                            currentCallback.onSuccess(response);
+                        }
+                    }
+                }
+            }
+    );
+
+    // 2. The Trigger function
+    public void chooseImage(UniChooseImageCallback callback) {
+        this.currentCallback = callback;
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("image/*");
+        galleryLauncher.launch(Intent.createChooser(intent, "Select Picture"));
+    }
+
+    // 3. Helper to write URI data into a concrete accessible file path
+    private String getFilePathFromUri(Uri uri) {
+        try {
+            Context context = getApplicationContext();
+            InputStream inputStream = context.getContentResolver().openInputStream(uri);
+            if (inputStream == null) return null;
+
+            // Saves inside app cache: "internal_cache/temp_picked_image.jpg"
+            File cacheFile = new File(context.getCacheDir(), "temp_picked_image.jpg");
+            FileOutputStream outputStream = new FileOutputStream(cacheFile);
+
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, bytesRead);
+            }
+            outputStream.close();
+            inputStream.close();
+
+            return cacheFile.getAbsolutePath();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
     public static void setRoomLeaveListener(LastRoomLeave listener) {
         roomLeaveListener = listener;
     }
@@ -128,41 +202,51 @@ public class AudioRoomActivity extends AppCompatActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        chooseImage(new UniChooseImageCallback() {
+            @Override
+            public void onSuccess(UniImageResponse res) {
+                // Accessing it precisely how you would in uni-app!
+                String myImagePath = res.tempFilePaths.get(0);
+                Log.d("UniAppStyle", "Picked path: " + myImagePath);
+            }
+        });
 
-        if (getIntent() != null) {
-            roomID = getIntent().getStringExtra("roomID");
-            userID = getIntent().getStringExtra("userID");
-            userName = getIntent().getStringExtra("userName");
-            isHost = getIntent().getBooleanExtra("isHost",false);
-        }
-
-
-
-
-       // roomID = "test_room_id";
-
-        //String userName = json.toString();
-
-//        setContentView(new android.widget.FrameLayout(this));
-        setContentView(R.layout.activity_live_audio_room);
-        ivLogo = findViewById(R.id.ivLogo);
-       // ivLogo.setVisibility(View.VISIBLE);
-
-        View root = findViewById(android.R.id.content);
-
-        if (root == null) {
-            Log.e("AudioRoom", "Activity layout root is NULL");
-        } else {
-            Log.d("AudioRoom", "Activity layout loaded OK");
-        }
-
-        ivLogo = findViewById(R.id.ivLogo);
-
-        if (ivLogo == null) {
-            Log.e("AudioRoom", "ivLogo is NULL ❌ - ImageView not found in layout");
-        } else {
-            Log.d("AudioRoom", "ivLogo loaded successfully ✅");
-        }
+        //    chooseImage(null);
+//
+//        if (getIntent() != null) {
+//            roomID = getIntent().getStringExtra("roomID");
+//            userID = getIntent().getStringExtra("userID");
+//            userName = getIntent().getStringExtra("userName");
+//            isHost = getIntent().getBooleanExtra("isHost",false);
+//        }
+//
+//
+//
+//
+//       // roomID = "test_room_id";
+//
+//        //String userName = json.toString();
+//
+////        setContentView(new android.widget.FrameLayout(this));
+//        setContentView(R.layout.activity_live_audio_room);
+//        ivLogo = findViewById(R.id.ivLogo);
+//       // ivLogo.setVisibility(View.VISIBLE);
+//
+//        View root = findViewById(android.R.id.content);
+//
+//        if (root == null) {
+//            Log.e("AudioRoom", "Activity layout root is NULL");
+//        } else {
+//            Log.d("AudioRoom", "Activity layout loaded OK");
+//        }
+//
+//        ivLogo = findViewById(R.id.ivLogo);
+//
+//        if (ivLogo == null) {
+//            Log.e("AudioRoom", "ivLogo is NULL ❌ - ImageView not found in layout");
+//        } else {
+//            Log.d("AudioRoom", "ivLogo loaded successfully ✅");
+//        }
 //
 //        ZegoUIKitPrebuiltLiveAudioRoomConfig config =
 //                ZegoUIKitPrebuiltLiveAudioRoomConfig.audience();
