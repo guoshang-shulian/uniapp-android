@@ -26,8 +26,16 @@ import com.zegocloud.zimkit.services.callback.UserAvatarUrlUpdateCallback;
 import com.zegocloud.zimkit.services.config.InputConfig;
 import com.zegocloud.zimkit.services.internal.ZIMKitCore;
 import com.zegocloud.zimkit.services.internal.interfaces.IZIMKitCore;
+import com.zegocloud.zimkit.services.model.CardMessageContent;
 import com.zegocloud.zimkit.services.model.ZIMKitMessage;
+import com.zegocloud.zimkit.services.model.ZIMKitMessageSubType;
 import com.zegocloud.zimkit.services.model.ZIMKitUser;
+import im.zego.zim.callback.ZIMMessageSentCallback;
+import im.zego.zim.entity.ZIMCustomMessage;
+import im.zego.zim.entity.ZIMError;
+import im.zego.zim.entity.ZIMMessage;
+import im.zego.zim.entity.ZIMMessageSendConfig;
+import im.zego.zim.entity.ZIMPushConfig;
 import im.zego.zim.enums.ZIMConversationType;
 import java.util.List;
 
@@ -182,6 +190,53 @@ public class ZIMKit {
     public static void sendGroupFileMessage(String filePath, String conversationID, String title,
         ZIMConversationType type, MessageSentCallback callback) {
         zimKitCore.sendGroupFileMessage(filePath, conversationID, title, type, callback);
+    }
+
+    /**
+     * 发送自定义卡片消息（商品卡/店铺卡/文章卡/红包卡）。
+     *
+     * @param payload       卡片 JSON（见 docs/im-custom-message-contract.md）
+     * @param subType       见 {@link ZIMKitMessageSubType}
+     * @param conversationID 会话 ID
+     * @param type          会话类型
+     * @param callback      发送结果
+     */
+    public static void sendCustomMessage(String payload, int subType, String conversationID,
+        ZIMConversationType type, MessageSentCallback callback) {
+        if (zimKitCore == null) {
+            if (callback != null) {
+                ZIMError error = new ZIMError();
+                error.code = im.zego.zim.enums.ZIMErrorCode.FAILED;
+                error.message = "ZIMKit not init";
+                callback.onMessageSent(error);
+            }
+            return;
+        }
+        ZIMCustomMessage customMessage = new ZIMCustomMessage(payload == null ? "" : payload, subType);
+
+        ZIMKitCore core = ZIMKitCore.getInstance();
+        ZIMMessageSendConfig config = new ZIMMessageSendConfig();
+        ZIMKitConfig zimKitConfig = core.getZimKitConfig();
+        if (zimKitConfig != null) {
+            config.pushConfig = new ZIMPushConfig();
+            CardMessageContent cardContent = CardMessageContent.parse(subType, payload);
+            config.pushConfig.title = cardContent.getSummary();
+            config.pushConfig.content = cardContent.getSummary();
+            config.pushConfig.resourcesID = zimKitConfig.resourceID;
+        }
+
+        core.sendMessage(customMessage, conversationID, type, config, new ZIMMessageSentCallback() {
+            @Override
+            public void onMessageAttached(ZIMMessage message) {
+            }
+
+            @Override
+            public void onMessageSent(ZIMMessage message, ZIMError errorInfo) {
+                if (callback != null) {
+                    callback.onMessageSent(errorInfo);
+                }
+            }
+        });
     }
 
     public static void downloadMediaFile(ZIMKitMessage message, DownloadMediaFileCallback callback) {

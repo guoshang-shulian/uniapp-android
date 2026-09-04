@@ -59,6 +59,7 @@ import com.zegocloud.zimkit.components.message.interfaces.NetworkConnectionListe
 import com.zegocloud.zimkit.components.message.interfaces.ZIMKitMessagesListListener;
 import com.zegocloud.zimkit.components.message.model.AudioMessageModel;
 import com.zegocloud.zimkit.components.message.model.CombineMessageModel;
+import com.zegocloud.zimkit.components.message.model.CustomMessageModel;
 import com.zegocloud.zimkit.components.message.model.FileMessageModel;
 import com.zegocloud.zimkit.components.message.model.ImageMessageModel;
 import com.zegocloud.zimkit.components.message.model.VideoMessageModel;
@@ -92,6 +93,7 @@ import com.zegocloud.zimkit.services.config.ZIMKitMessageConfig;
 import com.zegocloud.zimkit.services.config.message.ZIMKitMessageOperationName;
 import com.zegocloud.zimkit.services.internal.ZIMKitAdvancedKey;
 import com.zegocloud.zimkit.services.internal.ZIMKitCore;
+import com.zegocloud.zimkit.services.model.CardMessageContent;
 import com.zegocloud.zimkit.services.model.MediaTransferProgress;
 import com.zegocloud.zimkit.services.model.ZIMKitGroupInfo;
 import com.zegocloud.zimkit.services.model.ZIMKitUser;
@@ -116,6 +118,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.json.JSONObject;
 
 public class ZIMKitMessageFragment extends BaseFragment<ZimkitFragmentMessageBinding, ZIMKitMessageVM> {
 
@@ -128,9 +131,63 @@ public class ZIMKitMessageFragment extends BaseFragment<ZimkitFragmentMessageBin
     private ZIMKitMessagesListListener messagesListListener;
     private static final int REQUEST_CODE_PHOTO = 1012;
     private static BackToUniappCallback mListener;
+    private static final List<ZIMKitMessageFragment> sInstances = new ArrayList<>();
 
     public static void setOnNativeDataListener(BackToUniappCallback listener) {
         mListener = listener;
+    }
+
+    public static BackToUniappCallback getNativeDataListener() {
+        return mListener;
+    }
+
+    public static void updateRedPacketState(String redPacketId, String payloadJson) {
+        if (redPacketId == null) {
+            return;
+        }
+        for (ZIMKitMessageFragment fragment : new ArrayList<>(sInstances)) {
+            fragment.updateRedPacketInAdapter(redPacketId, payloadJson);
+        }
+    }
+
+    private void updateRedPacketInAdapter(String redPacketId, String payloadJson) {
+        if (mAdapter == null) {
+            return;
+        }
+        List<ZIMKitMessageModel> list = mAdapter.getItemDataList();
+        for (int i = 0; i < list.size(); i++) {
+            ZIMKitMessageModel model = list.get(i);
+            if (!(model instanceof CustomMessageModel)) {
+                continue;
+            }
+            CustomMessageModel custom = (CustomMessageModel) model;
+            CardMessageContent card = custom.getCardContent();
+            if (card == null) {
+                continue;
+            }
+            if (redPacketId.equals(card.getNestedString("detail", "redPacketId"))) {
+                custom.setCardContent(CardMessageContent.parse(custom.getCardSubType(), payloadJson));
+                custom.setContent(custom.getCardContent().getSummary());
+                mAdapter.notifyItemChanged(i);
+                return;
+            }
+        }
+    }
+
+    private void sendRedPacketEvent() {
+        System.out.println("[CardBridge] RED_PACKET button clicked, mListener=" + (mListener != null));
+        if (mListener == null) {
+            return;
+        }
+        try {
+            JSONObject data = new JSONObject();
+            data.put("conversationId", conversationID == null ? "" : conversationID);
+            data.put("conversationType",
+                conversationType == im.zego.zim.enums.ZIMConversationType.GROUP ? "group" : "peer");
+            mListener.onCardAction("send_red_packet", data.toString());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
     private ActivityResultLauncher<Intent> forwardActivityLauncher = registerForActivityResult(
         new StartActivityForResult(), new ActivityResultCallback<ActivityResult>() {
@@ -197,6 +254,7 @@ public class ZIMKitMessageFragment extends BaseFragment<ZimkitFragmentMessageBin
     @Override
     protected void initView() {
         initRv();
+        sInstances.add(this);
     }
 
     private void initRv() {
@@ -576,6 +634,8 @@ public class ZIMKitMessageFragment extends BaseFragment<ZimkitFragmentMessageBin
                     pickPhotoToSend(REQUEST_CODE_PHOTO);
                 } else if (itemModel.getButtonName() == ZIMKitInputButtonName.VOICE_CALL) {
                    mListener.onStartCall("startCall");
+                } else if (itemModel.getButtonName() == ZIMKitInputButtonName.RED_PACKET) {
+                    sendRedPacketEvent();
                 } else if (itemModel.getButtonName() == ZIMKitInputButtonName.TAKE_PHOTO) {
                     useCameraTakePhotoToSend();
                 } else if (itemModel.getButtonName() == ZIMKitInputButtonName.VIDEO_CALL) {
@@ -768,7 +828,9 @@ public class ZIMKitMessageFragment extends BaseFragment<ZimkitFragmentMessageBin
                 @Override
                 public void onClickExtraItem(int position, ZIMKitInputButtonModel itemModel,
                     ZIMKitMessageModel repliedMessage) {
-
+                    if (itemModel.getButtonName() == ZIMKitInputButtonName.RED_PACKET) {
+                        sendRedPacketEvent();
+                    }
                 }
 
                 @Override
@@ -940,6 +1002,7 @@ public class ZIMKitMessageFragment extends BaseFragment<ZimkitFragmentMessageBin
     @Override
     public void onDestroy() {
         super.onDestroy();
+        sInstances.remove(this);
         ZIMKitMessageManager.share().removeNetworkConnection();
         ZIMKitMessageManager.share().clearNetworkListener();
         if (mAdapter != null) {

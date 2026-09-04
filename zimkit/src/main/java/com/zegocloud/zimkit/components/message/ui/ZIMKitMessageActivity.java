@@ -35,6 +35,15 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
 
     private static BackToUniappCallback mListener;
 
+    /** 当前打开的聊天 Activity（用于卡片点击后把聊天页让位于 uniapp 页面） */
+    private static ZIMKitMessageActivity sCurrent;
+
+    public static void finishCurrent() {
+        if (sCurrent != null) {
+            sCurrent.finish();
+        }
+    }
+
     private  String groupId;
 
     public static void setOnNativeDataListener(BackToUniappCallback listener) {
@@ -43,6 +52,7 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
 
     @Override
     protected void initView() {
+        sCurrent = this;
         Bundle bundle = getIntent().getBundleExtra(ZIMKitConstant.RouterConstant.KEY_BUNDLE);
         title = bundle.getString(ZIMKitConstant.MessagePageConstant.KEY_TITLE);
         type = bundle.getString(ZIMKitConstant.MessagePageConstant.KEY_TYPE);
@@ -212,5 +222,13 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
             }
         }, 200);
 
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (sCurrent == this) {
+            sCurrent = null;
+        }
     }
 }

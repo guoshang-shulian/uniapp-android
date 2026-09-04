@@ -15,12 +15,14 @@ import com.zegocloud.zimkit.BR;
 import com.zegocloud.zimkit.R;
 import com.zegocloud.zimkit.components.message.ZIMKitMessageManager;
 import com.zegocloud.zimkit.components.message.model.AudioMessageModel;
+import com.zegocloud.zimkit.components.message.model.CustomMessageModel;
 import com.zegocloud.zimkit.components.message.model.FileMessageModel;
 import com.zegocloud.zimkit.components.message.model.VideoMessageModel;
 import com.zegocloud.zimkit.components.message.model.ZIMKitMessageModel;
 import com.zegocloud.zimkit.components.message.ui.ZIMKitVideoViewActivity;
 import com.zegocloud.zimkit.components.message.widget.ZIMKitAudioPlayer;
 import com.zegocloud.zimkit.components.message.widget.viewholder.AudioMessageHolder;
+import com.zegocloud.zimkit.components.message.widget.viewholder.CardMessageHolder;
 import com.zegocloud.zimkit.components.message.widget.viewholder.CombineMessageHolder;
 import com.zegocloud.zimkit.components.message.widget.viewholder.CustomMessageHolder;
 import com.zegocloud.zimkit.components.message.widget.viewholder.FileMessageHolder;
@@ -34,7 +36,11 @@ import com.zegocloud.zimkit.components.message.widget.viewholder.VideoMessageHol
 import com.zegocloud.zimkit.services.ZIMKit;
 import com.zegocloud.zimkit.services.ZIMKitDelegate;
 import com.zegocloud.zimkit.services.internal.ZIMKitCore;
+import com.zegocloud.zimkit.services.model.CardMessageContent;
 import com.zegocloud.zimkit.services.model.ZIMKitMessage;
+import com.zegocloud.zimkit.services.model.ZIMKitMessageSubType;
+import com.zegocloud.zimkit.services.model.ZIMKitUser;
+import im.zego.zim.enums.ZIMConversationType;
 import im.zego.zim.enums.ZIMMessageDirection;
 import im.zego.zim.enums.ZIMMessageType;
 import java.util.ArrayList;
@@ -52,6 +58,9 @@ public class ZIMKitMessageAdapter extends RecyclerView.Adapter<MessageViewHolder
     protected boolean isMultiSelectMode = false;
     private boolean forwardMode;
     private boolean oneSideForwardMode;
+
+    /** 卡片类自定义消息的 viewType 基数（避免与 ZIMMessageType 冲突） */
+    private static final int CARD_VIEW_TYPE_BASE = 900;
 
     public ZIMKitMessageAdapter() {
         this(false, false);
@@ -286,7 +295,16 @@ public class ZIMKitMessageAdapter extends RecyclerView.Adapter<MessageViewHolder
                 isSend = (viewType / 1000) == 0; // because send =0,RECEIVE = 1
             }
             int type = (viewType % 1000);
-            if (type == ZIMMessageType.TIPS.value()) {
+            if (type >= CARD_VIEW_TYPE_BASE && type < CARD_VIEW_TYPE_BASE + 10) {
+                if (isSend) {
+                    binding = DataBindingUtil.inflate(LayoutInflater.from(parent.getContext()),
+                        R.layout.zimkit_item_message_send_card, parent, false);
+                } else {
+                    binding = DataBindingUtil.inflate(LayoutInflater.from(parent.getContext()),
+                        R.layout.zimkit_item_message_receive_card, parent, false);
+                }
+                viewHolder = new CardMessageHolder(binding);
+            } else if (type == ZIMMessageType.TIPS.value()) {
                 binding = DataBindingUtil.inflate(LayoutInflater.from(parent.getContext()),
                     R.layout.zimkit_item_message_tips, parent, false);
                 viewHolder = new TipsMessageHolder(binding);
@@ -421,8 +439,21 @@ public class ZIMKitMessageAdapter extends RecyclerView.Adapter<MessageViewHolder
             if (loading) {
                 direction = ZIMMessageDirection.RECEIVE.value();
             }
+            if (messageModel instanceof CustomMessageModel) {
+                int cardSubType = ((CustomMessageModel) messageModel).getCardSubType();
+                if (isCardSubType(cardSubType)) {
+                    return (direction * 1000) + CARD_VIEW_TYPE_BASE + cardSubType;
+                }
+            }
             return (direction * 1000) + type;
         }
+    }
+
+    private boolean isCardSubType(int subType) {
+        return subType == ZIMKitMessageSubType.PRODUCT_CARD
+            || subType == ZIMKitMessageSubType.SHOP_CARD
+            || subType == ZIMKitMessageSubType.ARTICLE_CARD
+            || subType == ZIMKitMessageSubType.RED_PACKET;
     }
 
     @Override
@@ -487,6 +518,24 @@ public class ZIMKitMessageAdapter extends RecyclerView.Adapter<MessageViewHolder
 
     private final ZIMKitDelegate eventCallBack = new ZIMKitDelegate() {
         @Override
+        public void onMessageReceived(String conversationID, ZIMConversationType type,
+            ArrayList<ZIMKitMessage> messages) {
+            if (messages == null) {
+                return;
+            }
+            for (ZIMKitMessage msg : messages) {
+                if (msg.type == ZIMMessageType.CUSTOM
+                    && msg.customMessageContent != null
+                    && msg.customMessageContent.cardSubType == ZIMKitMessageSubType.RED_PACKET_SYNC
+                    && msg.customMessageContent.cardContent != null) {
+                    String redPacketId = msg.customMessageContent.cardContent
+                        .getNestedString("detail", "redPacketId");
+                    updateCardStateBySync(redPacketId, msg.customMessageContent.cardContent.payloadJson);
+                }
+            }
+        }
+
+        @Override
         public void onMediaMessageDownloadingProgressUpdated(ZIMKitMessage message, boolean isFinished) {
             if (isFinished) {
                 if (mList.size() > 0) {
@@ -538,6 +587,67 @@ public class ZIMKitMessageAdapter extends RecyclerView.Adapter<MessageViewHolder
             }
         });
         notifyDataSetChanged();
+    }
+
+    private void updateCardStateBySync(String redPacketId, String payloadJson) {
+        if (redPacketId == null) {
+            return;
+        }
+        org.json.JSONObject sync = null;
+        try {
+            sync = new org.json.JSONObject(payloadJson);
+        } catch (Exception ignored) {
+        }
+        final org.json.JSONObject syncJson = sync;
+
+        int found = -1;
+        for (int i = 0; i < mList.size(); i++) {
+            ZIMKitMessageModel model = mList.get(i);
+            if (!(model instanceof CustomMessageModel)) {
+                continue;
+            }
+            CustomMessageModel custom = (CustomMessageModel) model;
+            CardMessageContent card = custom.getCardContent();
+            if (card == null) {
+                continue;
+            }
+            if (!redPacketId.equals(card.getNestedString("detail", "redPacketId"))) {
+                continue;
+            }
+            try {
+                org.json.JSONObject oldJson = new org.json.JSONObject(card.payloadJson);
+                org.json.JSONObject oldDetail = oldJson.optJSONObject("detail");
+                if (oldDetail == null) {
+                    oldDetail = new org.json.JSONObject();
+                    oldJson.put("detail", oldDetail);
+                }
+                org.json.JSONObject syncDetail =
+                    syncJson == null ? null : syncJson.optJSONObject("detail");
+                if (syncDetail != null) {
+                    int oldDrawCount = oldDetail.optInt("drawCount", 0);
+                    oldDetail.put("drawCount", oldDrawCount + 1);
+                    if (syncDetail.optBoolean("isLast", false)) {
+                        oldDetail.put("status", "ended");
+                    }
+                    ZIMKitUser localUser = ZIMKitCore.getInstance().getLocalUser();
+                    String localRawId = localUser == null ? "" : localUser.getId().replace("user_", "");
+                    String syncUserId = syncDetail.optString("userId", "");
+                    if (localRawId.equals(syncUserId)) {
+                        oldDetail.put("myDrawPoints", syncDetail.optDouble("points", 0));
+                    }
+                    oldDetail.put("remainPoints", syncDetail.optDouble("remainPoints", 0));
+                    oldDetail.put("remainCount", syncDetail.optInt("remainCount", 0));
+                }
+                custom.setCardContent(CardMessageContent.parse(custom.getCardSubType(), oldJson.toString()));
+                custom.setContent(custom.getCardContent().getSummary());
+            } catch (Exception ignored) {
+            }
+            found = i;
+            break;
+        }
+        if (found >= 0) {
+            notifyItemChanged(found);
+        }
     }
 
     public void clear() {

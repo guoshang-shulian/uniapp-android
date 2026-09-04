@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- 红包主体（暖红） -->
+    <path
+        android:fillColor="#FF6A3D"
+        android:pathData="M2,4h20c1.1,0 2,0.9 2,2v12c0,1.1 -0.9,2 -2,2H2c-1.1,0 -2,-0.9 -2,-2V6c0,-1.1 0.9,-2 2,-2z" />
+
+    <!-- 封口（深红三角折角） -->
+    <path
+        android:fillColor="#FF4E3D"
+        android:pathData="M2,4h20l-10,7L2,4z" />
+
+    <!-- 金色圆扣 -->
+    <path
+        android:fillColor="#FFD277"
+        android:pathData="M12,8.6c1.44,0 2.6,1.16 2.6,2.6s-1.16,2.6 -2.6,2.6 -2.6,-1.16 -2.6,-2.6 1.16,-2.6 2.6,-2.6z" />
+
+    <!-- 白色封口折线 -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M2,4L12,11L22,4"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="1.6" />
+
+    <!-- 底部褶皱 -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M8,13v6M12,13v6M16,13v6"
+        android:strokeColor="#FFE3C2"
+        android:strokeLineCap="round"
+        android:strokeWidth="1.1" />
+</vector>

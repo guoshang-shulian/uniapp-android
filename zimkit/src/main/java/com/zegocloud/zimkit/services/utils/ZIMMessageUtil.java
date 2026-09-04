@@ -18,7 +18,9 @@ import com.zegocloud.zimkit.components.message.model.VideoMessageModel;
 import com.zegocloud.zimkit.components.message.model.ZIMKitMessageModel;
 import com.zegocloud.zimkit.components.message.utils.image.ImageSizeUtils;
 import com.zegocloud.zimkit.services.internal.ZIMKitCore;
+import com.zegocloud.zimkit.services.model.CardMessageContent;
 import com.zegocloud.zimkit.services.model.ZIMKitMessage;
+import com.zegocloud.zimkit.services.model.ZIMKitMessageSubType;
 import im.zego.zim.entity.ZIMAudioMessage;
 import im.zego.zim.entity.ZIMCombineMessage;
 import im.zego.zim.entity.ZIMCustomMessage;
@@ -287,6 +289,11 @@ public class ZIMMessageUtil {
             case CUSTOM:
                 ZIMCustomMessage customMessage = (ZIMCustomMessage) zimMessage;
                 zimKitMessage.customMessageContent.customMessage = customMessage;
+                if (customMessage != null && customMessage.subType > ZIMKitMessageSubType.TEXT) {
+                    zimKitMessage.customMessageContent.cardSubType = customMessage.subType;
+                    zimKitMessage.customMessageContent.cardContent =
+                        CardMessageContent.parse(customMessage.subType, customMessage.message);
+                }
                 break;
             default:
                 zimKitMessage.textContent.content = ZIMKitCore.getInstance().getApplication()

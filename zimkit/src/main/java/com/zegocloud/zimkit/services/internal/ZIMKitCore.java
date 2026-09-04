@@ -200,6 +200,10 @@ public class ZIMKitCore implements IZIMKitCore {
                 new ZIMKitInputButtonModel(ZIMKitInputButtonName.PRODUCT, application, R.string.zimkit_product,
                         R.drawable.box, R.drawable.box,
                         R.drawable.box));
+        inputButtonMap.put(ZIMKitInputButtonName.RED_PACKET,
+                new ZIMKitInputButtonModel(ZIMKitInputButtonName.RED_PACKET, application, R.string.zimkit_red_packet,
+                        R.drawable.zimkit_ic_red_packet, R.drawable.zimkit_ic_red_packet,
+                        R.drawable.zimkit_ic_red_packet));
     }
 
     @Override
