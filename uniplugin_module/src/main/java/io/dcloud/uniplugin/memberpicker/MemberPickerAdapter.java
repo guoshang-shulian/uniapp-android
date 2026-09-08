@@ -18,8 +18,11 @@ import java.util.Set;
 
 import uni.dcloud.io.uniplugin_module.R;
 
-/** 成员选择器列表适配器（整页/弹窗共用） */
-public class MemberPickerAdapter extends RecyclerView.Adapter<MemberPickerAdapter.VH> {
+/** 成员选择器列表适配器（整页/弹窗共用；支持首字母分组头 + 已选/禁用态；分页后勾选保持） */
+public class MemberPickerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
+
+    private static final int TYPE_HEADER = 0;
+    private static final int TYPE_MEMBER = 1;
 
     public interface Callback {
         void onItemClick(Member member);
@@ -27,24 +30,46 @@ public class MemberPickerAdapter extends RecyclerView.Adapter<MemberPickerAdapte
         void onSelectionChanged(List<Member> selected);
     }
 
-    private final List<Member> items = new ArrayList<>();
+    /** 展示条目：String=分组头，Member=成员 */
+    private final List<Object> items = new ArrayList<>();
     private final Set<String> selectedIds = new LinkedHashSet<>();
     private final boolean multi;
     private final boolean readOnly;
+    private final boolean grouping;
+    private final boolean preselectDisabled;
     private final Callback callback;
 
-    public MemberPickerAdapter(boolean multi, boolean readOnly, Callback callback) {
+    public MemberPickerAdapter(boolean multi, boolean readOnly, boolean grouping,
+        boolean preselectDisabled, Callback callback) {
         this.multi = multi;
         this.readOnly = readOnly;
+        this.grouping = grouping;
+        this.preselectDisabled = preselectDisabled;
         this.callback = callback;
     }
 
     public void setItems(List<Member> list) {
         items.clear();
         if (list != null) {
-            items.addAll(list);
+            String last = null;
+            for (Member m : list) {
+                if (m == null) {
+                    continue;
+                }
+                if (grouping) {
+                    if (last == null || !last.equals(m.initial)) {
+                        items.add(m.initial);
+                        last = m.initial;
+                    }
+                }
+                if (preselectDisabled && m.disabled) {
+                    selectedIds.add(m.memberId);
+                }
+                items.add(m);
+            }
         }
         notifyDataSetChanged();
+        fireSelectionChanged();
     }
 
     public void addItems(List<Member> list) {
@@ -52,8 +77,37 @@ public class MemberPickerAdapter extends RecyclerView.Adapter<MemberPickerAdapte
             return;
         }
         int start = items.size();
-        items.addAll(list);
-        notifyItemRangeInserted(start, list.size());
+        String last = groupOf(items.size() - 1);
+        for (Member m : list) {
+            if (m == null) {
+                continue;
+            }
+            if (grouping && (last == null || !last.equals(m.initial))) {
+                items.add(m.initial);
+                last = m.initial;
+            }
+            if (preselectDisabled && m.disabled) {
+                selectedIds.add(m.memberId);
+            }
+            items.add(m);
+        }
+        notifyItemRangeInserted(start, items.size() - start);
+        fireSelectionChanged();
+    }
+
+    private String groupOf(int pos) {
+        for (int i = pos; i >= 0; i--) {
+            Object o = items.get(i);
+            if (o instanceof String) {
+                return (String) o;
+            }
+        }
+        return null;
+    }
+
+    /** 兼容旧调用 */
+    public void setItemsSimple(List<Member> list) {
+        setItems(list);
     }
 
     public void setSelectedIds(Set<String> ids) {
@@ -65,35 +119,89 @@ public class MemberPickerAdapter extends RecyclerView.Adapter<MemberPickerAdapte
         fireSelectionChanged();
     }
 
+    /** 清空用户选择（保留“已在群中/禁用”的必选） */
+    public void clearUserSelection() {
+        List<String> keep = new ArrayList<>();
+        if (preselectDisabled) {
+            for (Object o : items) {
+                if (o instanceof Member) {
+                    Member m = (Member) o;
+                    if (m.disabled) {
+                        keep.add(m.memberId);
+                    }
+                }
+            }
+        }
+        selectedIds.clear();
+        selectedIds.addAll(keep);
+        notifyDataSetChanged();
+        fireSelectionChanged();
+    }
+
     public Set<String> getSelectedIds() {
         return new LinkedHashSet<>(selectedIds);
     }
 
     public List<Member> getSelectedMembers() {
         List<Member> result = new ArrayList<>();
-        for (Member m : items) {
-            if (selectedIds.contains(m.memberId)) {
-                result.add(m);
+        for (Object o : items) {
+            if (o instanceof Member) {
+                Member m = (Member) o;
+                if (selectedIds.contains(m.memberId)) {
+                    result.add(m);
+                }
             }
         }
         return result;
     }
 
     public List<Member> getItems() {
-        return new ArrayList<>(items);
+        List<Member> result = new ArrayList<>();
+        for (Object o : items) {
+            if (o instanceof Member) {
+                result.add((Member) o);
+            }
+        }
+        return result;
+    }
+
+    /** 分组头首字母 → 列表位置（索引条跳转用） */
+    public int positionOfInitial(String letter) {
+        for (int i = 0; i < items.size(); i++) {
+            if (items.get(i) instanceof String && letter.equals(items.get(i))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    @Override
+    public int getItemViewType(int position) {
+        return items.get(position) instanceof String ? TYPE_HEADER : TYPE_MEMBER;
     }
 
     @NonNull
     @Override
-    public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+    public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        if (viewType == TYPE_HEADER) {
+            View v = LayoutInflater.from(parent.getContext())
+                .inflate(R.layout.item_member_picker_header, parent, false);
+            return new HeaderVH(v);
+        }
         View v = LayoutInflater.from(parent.getContext())
             .inflate(R.layout.item_member_picker, parent, false);
         return new VH(v);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull VH h, int position) {
-        Member m = items.get(position);
+    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+        Object o = items.get(position);
+        if (holder instanceof HeaderVH) {
+            ((HeaderVH) holder).text.setText((String) o);
+            return;
+        }
+        Member m = (Member) o;
+        VH h = (VH) holder;
         h.name.setText(m.displayName());
         h.name.setAlpha(m.disabled ? 0.4f : 1f);
 
@@ -119,11 +227,11 @@ public class MemberPickerAdapter extends RecyclerView.Adapter<MemberPickerAdapte
             h.disabled.setVisibility(View.GONE);
         }
 
-        if (multi && !readOnly) {
+        if (!readOnly) {
             h.checkbox.setVisibility(View.VISIBLE);
             h.checkbox.setImageResource(selectedIds.contains(m.memberId)
                 ? R.drawable.ic_mp_checked : R.drawable.ic_mp_unchecked);
-            h.checkbox.setAlpha(m.disabled ? 0.4f : 1f);
+            h.checkbox.setAlpha(m.disabled ? 0.45f : 1f);
         } else {
             h.checkbox.setVisibility(View.GONE);
         }
@@ -163,6 +271,15 @@ public class MemberPickerAdapter extends RecyclerView.Adapter<MemberPickerAdapte
     private void fireSelectionChanged() {
         if (callback != null) {
             callback.onSelectionChanged(getSelectedMembers());
+        }
+    }
+
+    static class HeaderVH extends RecyclerView.ViewHolder {
+        TextView text;
+
+        HeaderVH(@NonNull View itemView) {
+            super(itemView);
+            text = itemView.findViewById(R.id.mpHeader);
         }
     }
 

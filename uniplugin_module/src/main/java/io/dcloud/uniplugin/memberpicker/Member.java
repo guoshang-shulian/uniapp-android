@@ -14,6 +14,9 @@ public class Member {
     public String remark = "";      // 好友备注名 alias
     public boolean disabled = false;
     public String disabledReason = "";
+    /** 拼音/首字母（排序+分组用，不参与业务） */
+    public String pinyin = "";
+    public String initial = "#";
 
     /** 展示名：备注优先，其次昵称 */
     public String displayName() {

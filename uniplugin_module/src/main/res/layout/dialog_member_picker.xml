@@ -59,7 +59,8 @@
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/mpSheetList"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:scrollbars="vertical" />
 
     <View
@@ -92,11 +93,16 @@
             android:id="@+id/mpSheetConfirm"
             android:layout_width="0dp"
             android:layout_height="match_parent"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginBottom="8dp"
             android:layout_weight="1"
+            android:background="@drawable/bg_picker_confirm"
             android:gravity="center"
             android:text="确定"
-            android:textColor="#FA5151"
-            android:textSize="16sp"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
             android:visibility="gone" />
     </LinearLayout>
 </LinearLayout>

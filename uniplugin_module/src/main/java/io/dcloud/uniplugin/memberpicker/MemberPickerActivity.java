@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
@@ -34,8 +35,10 @@ public class MemberPickerActivity extends android.app.Activity {
     private List<Member> currentList;
     private TextView confirmBtn;
     private TextView emptyView;
+    private TextView pickCount;
     private ProgressBar progressBar;
     private EditText searchInput;
+    private LinearLayout indexBar;
     private boolean loading = false;
 
     public static void start(Context context, String optionsJson) {
@@ -48,9 +51,28 @@ public class MemberPickerActivity extends android.app.Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_member_picker);
+        try {
+            setContentView(R.layout.activity_member_picker);
+            options = MemberPickerOptions.fromJson(getIntent().getStringExtra("optionsJson"));
+            if (options == null) {
+                deliverCancelAndFinish("options null");
+                return;
+            }
+            initViews();
+            android.util.Log.d("MemberPicker", "onCreate ok dataSource=" + options.dataSource
+                + " title=" + options.title + " grouping=" + options.grouping);
+        } catch (Throwable t) {
+            android.util.Log.e("MemberPicker", "onCreate failed", t);
+            if (options != null) {
+                TestModule.deliverMemberPickResult(options.requestId,
+                    "{\"success\":false,\"canceled\":true,\"members\":[],\"message\":\""
+                        + (t == null ? "unknown" : t.getMessage()) + "\"}");
+            }
+            finish();
+        }
+    }
 
-        options = MemberPickerOptions.fromJson(getIntent().getStringExtra("optionsJson"));
+    private void initViews() {
         if (options.conversationId != null && options.conversationId.isEmpty()
             && "GROUP_MEMBERS".equals(options.dataSource)) {
             Toast.makeText(this, "缺少会话ID", Toast.LENGTH_SHORT).show();
@@ -58,21 +80,29 @@ public class MemberPickerActivity extends android.app.Activity {
             return;
         }
 
-        TextView title = findViewById(R.id.mpTitle);
+        TextView title = findViewById(R.id.mpkTitle);
         title.setText(options.title == null || options.title.isEmpty() ? "选择成员" : options.title);
 
-        confirmBtn = findViewById(R.id.mpConfirm);
-        emptyView = findViewById(R.id.mpEmpty);
-        progressBar = findViewById(R.id.mpProgress);
-        searchInput = findViewById(R.id.mpSearch);
+        confirmBtn = findViewById(R.id.mpkConfirm);
+        emptyView = findViewById(R.id.mpkEmpty);
+        progressBar = findViewById(R.id.mpkProgress);
+        searchInput = findViewById(R.id.mpkSearch);
+        pickCount = findViewById(R.id.mpkPickCount);
+        indexBar = findViewById(R.id.mpkIndex);
 
-        findViewById(R.id.mpBack).setOnClickListener(v -> cancelAndFinish());
+        findViewById(R.id.mpkBack).setOnClickListener(v -> cancelAndFinish());
         confirmBtn.setOnClickListener(v -> confirmAndFinish());
+        // 已选数 → 点击清空（保留“已在群中”必选）
+        pickCount.setOnClickListener(v -> {
+            adapter.clearUserSelection();
+            Toast.makeText(this, "已清空选择", Toast.LENGTH_SHORT).show();
+        });
 
         dataSource = MemberPickerDataSource.create(options);
         currentList = dataSource.getCache();
 
-        adapter = new MemberPickerAdapter(options.isMulti(), options.isReadOnly(), new MemberPickerAdapter.Callback() {
+        adapter = new MemberPickerAdapter(options.isMulti(), options.isReadOnly(), options.grouping,
+            true, new MemberPickerAdapter.Callback() {
             @Override
             public void onItemClick(Member member) {
                 deliverSuccess(member);
@@ -81,13 +111,11 @@ public class MemberPickerActivity extends android.app.Activity {
 
             @Override
             public void onSelectionChanged(List<Member> selected) {
-                if (options.isMulti() && !options.isReadOnly()) {
-                    confirmBtn.setText(selected.isEmpty() ? "确定" : "确定 (" + selected.size() + ")");
-                }
+                updateCount(selected);
             }
         });
 
-        RecyclerView list = findViewById(R.id.mpList);
+        RecyclerView list = findViewById(R.id.mpkList);
         list.setLayoutManager(new LinearLayoutManager(this));
         list.setAdapter(adapter);
         list.addOnScrollListener(new RecyclerView.OnScrollListener() {
@@ -103,19 +131,23 @@ public class MemberPickerActivity extends android.app.Activity {
 
         if (options.isMulti() && !options.isReadOnly()) {
             confirmBtn.setVisibility(View.VISIBLE);
+            pickCount.setVisibility(View.VISIBLE);
             adapter.setSelectedIds(new java.util.LinkedHashSet<>(options.defaultSelectedIds));
         }
 
-        if (!options.isReadOnly() && !options.isMulti()) {
-            confirmBtn.setVisibility(View.GONE);
-        }
         if (options.isReadOnly()) {
             confirmBtn.setVisibility(View.GONE);
             searchInput.setVisibility(options.searchable ? View.VISIBLE : View.GONE);
         }
 
+        if (options.grouping) {
+            buildIndexBar();
+        } else {
+            indexBar.setVisibility(View.GONE);
+        }
+
         if (options.searchable) {
-            searchInput.setHint(options.dataSource.equals("FRIENDS") ? "搜索好友昵称/备注" : "搜索成员昵称");
+            searchInput.setHint(options.dataSource.equals("FRIENDS") ? "搜索好友昵称/备注/手机号" : "搜索成员昵称");
             searchInput.addTextChangedListener(new TextWatcher() {
                 @Override
                 public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -137,6 +169,45 @@ public class MemberPickerActivity extends android.app.Activity {
         loadFirst();
     }
 
+    private void buildIndexBar() {
+        indexBar.removeAllViews();
+        String letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#";
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
+        for (int i = 0; i < letters.length(); i++) {
+            final String letter = String.valueOf(letters.charAt(i));
+            TextView tv = new TextView(this);
+            tv.setText(letter);
+            tv.setTextSize(10);
+            tv.setTextColor(0xFF646A73);
+            tv.setGravity(Gravity.CENTER);
+            tv.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+            tv.setOnClickListener(v -> jumpToInitial(letter));
+            indexBar.addView(tv);
+        }
+        lp.weight = 1;
+        indexBar.setLayoutParams(lp);
+    }
+
+    private void jumpToInitial(String letter) {
+        int pos = adapter.positionOfInitial(letter);
+        if (pos < 0) {
+            return;
+        }
+        RecyclerView list = findViewById(R.id.mpkList);
+        LinearLayoutManager lm = (LinearLayoutManager) list.getLayoutManager();
+        if (lm != null) {
+            lm.scrollToPositionWithOffset(pos, 0);
+        }
+    }
+
+    private void updateCount(List<Member> selected) {
+        if (pickCount != null) {
+            pickCount.setText("已选 " + (selected == null ? 0 : selected.size()) + " 人");
+        }
+    }
+
     private void loadFirst() {
         loading = true;
         progressBar.setVisibility(View.VISIBLE);
@@ -144,6 +215,8 @@ public class MemberPickerActivity extends android.app.Activity {
         dataSource.loadFirst(new MemberPickerDataSource.Callback() {
             @Override
             public void onLoaded(List<Member> members, boolean finished) {
+                android.util.Log.d("MemberPicker", "loadFirst loaded=" + (members == null ? 0 : members.size())
+                    + " finished=" + finished);
                 runOnUiThread(() -> {
                     loading = false;
                     progressBar.setVisibility(View.GONE);
@@ -155,6 +228,7 @@ public class MemberPickerActivity extends android.app.Activity {
 
             @Override
             public void onError(int code, String message) {
+                android.util.Log.d("MemberPicker", "loadFirst error code=" + code + " msg=" + message);
                 runOnUiThread(() -> {
                     loading = false;
                     progressBar.setVisibility(View.GONE);
@@ -190,7 +264,7 @@ public class MemberPickerActivity extends android.app.Activity {
     }
 
     private void search(String keyword) {
-        if (/* empty keyword */ keyword == null || keyword.trim().isEmpty()) {
+        if (keyword == null || keyword.trim().isEmpty()) {
             currentList = dataSource.getCache();
             adapter.setItems(currentList);
             refreshEmpty(currentList);
@@ -250,7 +324,16 @@ public class MemberPickerActivity extends android.app.Activity {
             }
         }
         result.put("members", arr);
+        result.put("action", options.action == null ? "" : options.action);
         TestModule.deliverMemberPickResult(options.requestId, result.toJSONString());
+    }
+
+    private void deliverCancelAndFinish(@SuppressWarnings("unused") String reason) {
+        if (options != null) {
+            cancelAndFinish();
+        } else {
+            finish();
+        }
     }
 
     private void cancelAndFinish() {
