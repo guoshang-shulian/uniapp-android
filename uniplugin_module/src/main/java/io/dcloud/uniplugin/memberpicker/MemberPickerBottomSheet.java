@@ -22,7 +22,7 @@ import java.util.List;
 
 import uni.dcloud.io.uniplugin_module.R;
 
-/** 成员选择器底部弹窗壳（发红包选人/原生内轻量使用） */
+/** 成员选择器底部弹窗壳（半屏；含搜索框，保留分组头，无字母索引条） */
 public class MemberPickerBottomSheet {
 
     public interface ResultListener {
@@ -34,7 +34,8 @@ public class MemberPickerBottomSheet {
         dialog.setContentView(R.layout.dialog_member_picker);
         Window window = dialog.getWindow();
         if (window != null) {
-            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            int height = (int) (activity.getResources().getDisplayMetrics().heightPixels * 0.7f);
+            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, height);
             window.setGravity(Gravity.BOTTOM);
             window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         }
@@ -42,31 +43,50 @@ public class MemberPickerBottomSheet {
         TextView title = dialog.findViewById(R.id.mpSheetTitle);
         title.setText(options.title == null || options.title.isEmpty() ? "选择成员" : options.title);
         EditText search = dialog.findViewById(R.id.mpSheetSearch);
-        TextView confirm = dialog.findViewById(R.id.mpSheetConfirm);
+        final TextView confirm = dialog.findViewById(R.id.mpSheetConfirm);
 
-        final MemberPickerDataSource dataSource = MemberPickerDataSource.create(options);
+        MemberPickerDataSource dataSource = MemberPickerDataSource.create(options);
         final List<Member> current = new ArrayList<>();
         final MemberPickerAdapter adapter = new MemberPickerAdapter(options.isMulti(), options.isReadOnly(),
-            new MemberPickerAdapter.Callback() {
-                @Override
-                public void onItemClick(Member member) {
-                    List<Member> result = new ArrayList<>();
-                    result.add(member);
-                    listener.onResult(true, false, result);
-                    dialog.dismiss();
-                }
+            options.grouping, true, new MemberPickerAdapter.Callback() {
+            @Override
+            public void onItemClick(Member member) {
+                List<Member> result = new ArrayList<>();
+                result.add(member);
+                listener.onResult(true, false, result);
+                dialog.dismiss();
+            }
 
-                @Override
-                public void onSelectionChanged(List<Member> selected) {
-                    if (options.isMulti() && !options.isReadOnly()) {
-                        confirm.setText(selected.isEmpty() ? "确定" : "确定 (" + selected.size() + ")");
-                    }
+            @Override
+            public void onSelectionChanged(List<Member> selected) {
+                if (options.isMulti() && !options.isReadOnly()) {
+                    confirm.setText(selected == null || selected.isEmpty() ? "确定" : "确定 (" + selected.size() + ")");
                 }
-            });
+            }
+        });
 
         RecyclerView list = dialog.findViewById(R.id.mpSheetList);
         list.setLayoutManager(new LinearLayoutManager(activity));
         list.setAdapter(adapter);
+        list.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
+                LinearLayoutManager lm = (LinearLayoutManager) recyclerView.getLayoutManager();
+                if (lm != null && lm.findLastVisibleItemPosition() >= adapter.getItemCount() - 3
+                    && dy > 0 && !dataSource.isFinished()) {
+                    dataSource.loadMore(new MemberPickerDataSource.Callback() {
+                        @Override
+                        public void onLoaded(List<Member> members, boolean finished) {
+                            new Handler(Looper.getMainLooper()).post(() -> adapter.setItems(members));
+                        }
+
+                        @Override
+                        public void onError(int code, String message) {
+                        }
+                    });
+                }
+            }
+        });
 
         if (options.isMulti() && !options.isReadOnly()) {
             confirm.setVisibility(View.VISIBLE);

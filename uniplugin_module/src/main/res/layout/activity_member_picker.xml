@@ -13,7 +13,7 @@
         android:background="#FFFFFF">
 
         <TextView
-            android:id="@+id/mpBack"
+            android:id="@+id/mpkBack"
             android:layout_width="48dp"
             android:layout_height="52dp"
             android:gravity="center"
@@ -22,7 +22,7 @@
             android:textSize="24sp" />
 
         <TextView
-            android:id="@+id/mpTitle"
+            android:id="@+id/mpkTitle"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
             android:layout_gravity="center"
@@ -33,16 +33,30 @@
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/mpConfirm"
+            android:id="@+id/mpkPickCount"
             android:layout_width="wrap_content"
             android:layout_height="52dp"
             android:layout_gravity="end"
+            android:layout_marginEnd="88dp"
             android:gravity="center"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
+            android:text="已选 0 人"
+            android:textColor="#646A73"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/mpkConfirm"
+            android:layout_width="wrap_content"
+            android:layout_height="34dp"
+            android:layout_gravity="end|center_vertical"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/bg_picker_confirm"
+            android:gravity="center"
+            android:paddingStart="18dp"
+            android:paddingEnd="18dp"
             android:text="确定"
-            android:textColor="#FA5151"
-            android:textSize="16sp"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
             android:visibility="gone" />
     </FrameLayout>
 
@@ -57,14 +71,14 @@
         android:paddingBottom="10dp">
 
         <EditText
-            android:id="@+id/mpSearch"
+            android:id="@+id/mpkSearch"
             android:layout_width="match_parent"
             android:layout_height="38dp"
             android:background="@drawable/bg_mp_search"
             android:drawableStart="@drawable/ic_member_picker_search"
             android:drawablePadding="6dp"
             android:gravity="center_vertical"
-            android:hint="搜索昵称/备注"
+            android:hint="搜索昵称/备注/手机号"
             android:imeOptions="actionSearch"
             android:inputType="text"
             android:paddingStart="12dp"
@@ -74,14 +88,14 @@
             android:textSize="14sp" />
     </LinearLayout>
 
-    <!-- 列表 -->
+    <!-- 列表 + 字母索引条 -->
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
 
         <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/mpList"
+            android:id="@+id/mpkList"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:clipToPadding="false"
@@ -89,7 +103,17 @@
             android:scrollbars="vertical" />
 
         <LinearLayout
-            android:id="@+id/mpEmpty"
+            android:id="@+id/mpkIndex"
+            android:layout_width="24dp"
+            android:layout_height="match_parent"
+            android:layout_gravity="end"
+            android:gravity="center_vertical"
+            android:orientation="vertical"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp" />
+
+        <LinearLayout
+            android:id="@+id/mpkEmpty"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
@@ -106,7 +130,7 @@
         </LinearLayout>
 
         <ProgressBar
-            android:id="@+id/mpProgress"
+            android:id="@+id/mpkProgress"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"

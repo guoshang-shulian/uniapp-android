@@ -23,6 +23,12 @@ public class MemberPickerOptions {
     public boolean readOnly = false;
     public boolean searchable = true;
     public String present = "page";             // page | sheet
+    /** 拉人场景：自动把该群已有成员标为“已在群中（已选+禁用）”，避免重复拉人 */
+    public String excludeGroupId = "";
+    /** 场景动作：INVITE / KICK / MENTION / ""（仅选择，动作由外部执行） */
+    public String action = "";
+    /** 是否按首字母分组（好友 true；群成员 false） */
+    public boolean grouping = false;
 
     public static MemberPickerOptions fromJson(String json) {
         MemberPickerOptions o = new MemberPickerOptions();
@@ -41,9 +47,15 @@ public class MemberPickerOptions {
             o.readOnly = obj.getBooleanValue("readOnly");
             o.searchable = obj.getBoolean("searchable") == null || obj.getBoolean("searchable");
             o.present = obj.getString("present") == null ? "page" : obj.getString("present");
+            o.excludeGroupId = obj.getString("excludeGroupId") == null ? "" : obj.getString("excludeGroupId");
+            o.action = obj.getString("action") == null ? "" : obj.getString("action");
             o.excludeIds = parseIdList(obj.getJSONArray("excludeIds"));
             o.excludeRoles = parseIdList(obj.getJSONArray("excludeRoles"));
             o.defaultSelectedIds = parseIdList(obj.getJSONArray("defaultSelectedIds"));
+            // 好友默认按首字母分组；群成员默认不分组
+            o.grouping = obj.containsKey("grouping")
+                ? obj.getBooleanValue("grouping")
+                : "FRIENDS".equals(o.dataSource);
         } catch (Exception ignored) {
         }
         return o;
