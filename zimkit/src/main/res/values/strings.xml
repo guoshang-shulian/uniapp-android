@@ -164,6 +164,7 @@
   <string name="audio_record_cancel_tips">松开取消发送</string>
   <string name="zimkit_avcall">语音会</string>
   <string name="zimkit_product">产品</string>
+  <string name="zimkit_red_packet">红包</string>
   <string name="zimkit_video_call">视频通话</string>
   <string name="zimkit_audio_call">音频通话</string>
   <string name="zimkit_allow">允许</string>

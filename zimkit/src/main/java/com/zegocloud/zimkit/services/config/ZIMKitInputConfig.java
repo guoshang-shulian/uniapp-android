@@ -20,6 +20,7 @@ public class ZIMKitInputConfig {
                 ZIMKitInputButtonName.TAKE_PHOTO,
                 ZIMKitInputButtonName.FILE,
                 ZIMKitInputButtonName.VOICE_CALL,
+                ZIMKitInputButtonName.RED_PACKET,
                 ZIMKitInputButtonName.PRODUCT
         ));
         emojis = new ArrayList<>(EmojiUtils.createEmojiData());

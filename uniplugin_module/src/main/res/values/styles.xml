@@ -15,4 +15,18 @@
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
+    <!-- 微信式底部弹窗（红包类型/成员选择） -->
+    <style name="BottomSheetDialogTheme" parent="@android:style/Theme.DeviceDefault.Light.Dialog">
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimAmount">0.5</item>
+        <item name="android:windowAnimationStyle">@style/BottomSheetAnimationStyle</item>
+    </style>
+
+    <style name="BottomSheetAnimationStyle">
+        <item name="android:windowEnterAnimation">@anim/dialog_slide_in_bottom</item>
+        <item name="android:windowExitAnimation">@anim/dialog_slide_out_bottom</item>
+    </style>
+
 </resources>

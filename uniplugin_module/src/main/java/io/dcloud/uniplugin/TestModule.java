@@ -45,6 +45,7 @@ import com.zegocloud.zimkit.services.callback.CreateGroupCallback;
 import com.zegocloud.zimkit.services.callback.JoinGroupCallback;
 import com.zegocloud.zimkit.services.model.ZIMKitConversation;
 import com.zegocloud.zimkit.services.model.ZIMKitGroupInfo;
+import com.zegocloud.zimkit.services.internal.ZIMKitCore;
 //import  io.dcloud.uniplugin.
 import org.json.JSONException;
 
@@ -53,14 +54,39 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import im.zego.zim.ZIM;
+import im.zego.zim.callback.ZIMFriendApplicationAcceptedCallback;
+import im.zego.zim.callback.ZIMFriendApplicationListQueriedCallback;
+import im.zego.zim.callback.ZIMFriendApplicationRejectedCallback;
+import im.zego.zim.callback.ZIMFriendApplicationSentCallback;
+import im.zego.zim.callback.ZIMFriendListQueriedCallback;
+import im.zego.zim.callback.ZIMFriendsDeletedCallback;
+import im.zego.zim.callback.ZIMFriendsInfoQueriedCallback;
+import im.zego.zim.callback.ZIMFriendsSearchedCallback;
+import im.zego.zim.callback.ZIMUsersInfoQueriedCallback;
 import im.zego.zim.entity.ZIMConversationFilterOption;
 import im.zego.zim.entity.ZIMConversationQueryConfig;
 import im.zego.zim.entity.ZIMError;
 import im.zego.zim.entity.ZIMErrorUserInfo;
+import im.zego.zim.entity.ZIMFriendAddConfig;
+import im.zego.zim.entity.ZIMFriendApplicationAcceptConfig;
+import im.zego.zim.entity.ZIMFriendApplicationInfo;
+import im.zego.zim.entity.ZIMFriendApplicationListQueryConfig;
+import im.zego.zim.entity.ZIMFriendApplicationRejectConfig;
+import im.zego.zim.entity.ZIMFriendApplicationSendConfig;
+import im.zego.zim.entity.ZIMFriendDeleteConfig;
+import im.zego.zim.entity.ZIMFriendInfo;
+import im.zego.zim.entity.ZIMFriendListQueryConfig;
+import im.zego.zim.entity.ZIMFriendSearchConfig;
+import im.zego.zim.entity.ZIMUserFullInfo;
+import im.zego.zim.entity.ZIMUserInfo;
+import im.zego.zim.entity.ZIMUsersInfoQueryConfig;
 import im.zego.zim.enums.ZIMConnectionEvent;
 import im.zego.zim.enums.ZIMConnectionState;
 import im.zego.zim.enums.ZIMConversationType;
@@ -73,6 +99,12 @@ import io.dcloud.uniplugin.activity.ConversationActivity;
 import io.dcloud.uniplugin.activity.LastRoomLeave;
 import io.dcloud.uniplugin.activity.LiveActivity;
 import io.dcloud.uniplugin.activity.NativePageActivity;
+import io.dcloud.uniplugin.activity.RedPacketDetailActivity;
+import io.dcloud.uniplugin.activity.RedPacketSendActivity;
+import io.dcloud.uniplugin.memberpicker.Member;
+import io.dcloud.uniplugin.memberpicker.MemberPickerActivity;
+import io.dcloud.uniplugin.memberpicker.MemberPickerBottomSheet;
+import io.dcloud.uniplugin.memberpicker.MemberPickerOptions;
 //import io.dcloud.uniplugin.activity.TubeActivity;
 //import io.dcloud.uniplugin.activity.reward.RewardedAds;
 //import io.dcloud.uniplugin.activity.task.ContentTaskActivity;
@@ -433,6 +465,20 @@ public class TestModule extends UniModule {
     public void startChat(String conversationID) {
         try {
              groupId = "";
+             ZIMKitMessageFragment.setOnNativeDataListener(new BackToUniappCallback() {
+                 @Override
+                 public void onDataReceived(String data) {
+                 }
+
+                 @Override
+                 public void onStartCall(String data) {
+                 }
+
+                 @Override
+                 public void onCardAction(String action, String data) {
+                     dispatchCardEvent(action, data);
+                 }
+             });
              ZIMKitRouter.toMessageActivity(
                  mUniSDKInstance.getContext(),
                  conversationID,
@@ -494,6 +540,11 @@ public class TestModule extends UniModule {
             public void onStartCall(String data){
 
             }
+
+            @Override
+            public void onCardAction(String action, String data) {
+                dispatchCardEvent(action, data);
+            }
         });
 
         ZIMKitMessageFragment.setOnNativeDataListener(new BackToUniappCallback() {
@@ -511,6 +562,11 @@ public class TestModule extends UniModule {
                 intent.putExtra(RoomConstants.INTENT_USER_NAME, AppUtils.getUserName());
                 intent.putExtra(RoomConstants.INTENT_AVATAR, AppUtils.getAvatar());
                 mUniSDKInstance.getContext().startActivity(intent);
+            }
+
+            @Override
+            public void onCardAction(String action, String data) {
+                dispatchCardEvent(action, data);
             }
         });
         ZIMKitRouter.toMessageActivity(mUniSDKInstance.getContext(), conversationID, ZIMKitConversationType.ZIMKitConversationTypeGroup);
@@ -870,6 +926,7 @@ public class TestModule extends UniModule {
             // 3. Clear your native class memory status tracking flags
             isDelegateRegistered = false;
             globalJsCallback = null;
+            cardJsCallback = null;
             System.out.println("SaaS Security Engine 2 ");
 
             System.out.println("SaaS Security Engine: Zego socket destroyed and session cleared successfully.");
@@ -947,7 +1004,506 @@ public class TestModule extends UniModule {
     }
 
     private static UniJSCallback globalJsCallback;
+    private static UniJSCallback cardJsCallback;
+    private static final Map<String, UniJSCallback> sMemberPickerCallbacks = new ConcurrentHashMap<>();
     private static boolean isDelegateRegistered = false;
+
+    /** 原生红包 Activity 调用业务接口所需的静态配置 */
+    private static String businessBaseUrl = "https://buyer-ceshi.shanxunsw.com/buyer";
+    private static String businessToken = "";
+    private static String localUserId = "";
+    private static String localUserName = "";
+    private static String localUserAvatar = "";
+
+    @UniJSMethod(uiThread = true)
+    public void setBusinessConfig(String baseUrl, String token, String userId, String userName, String avatarUrl) {
+        if (baseUrl != null && !baseUrl.isEmpty()) {
+            businessBaseUrl = baseUrl;
+        }
+        businessToken = token == null ? "" : token;
+        localUserId = userId == null ? "" : userId;
+        localUserName = userName == null ? "" : userName;
+        localUserAvatar = avatarUrl == null ? "" : avatarUrl;
+        System.out.println("[BusinessConfig] baseUrl=" + businessBaseUrl
+            + " tokenLen=" + businessToken.length()
+            + " userId=" + localUserId + " userName=" + localUserName);
+    }
+
+    public static String getBusinessBaseUrl() {
+        return businessBaseUrl;
+    }
+
+    public static String getBusinessToken() {
+        return businessToken;
+    }
+
+    public static String getLocalUserId() {
+        return localUserId;
+    }
+
+    public static String getLocalUserName() {
+        return localUserName;
+    }
+
+    public static String getLocalUserAvatar() {
+        return localUserAvatar;
+    }
+
+    @UniJSMethod(uiThread = true)
+    public void registerCardEventCallback(UniJSCallback callback) {
+        cardJsCallback = callback;
+    }
+
+    @UniJSMethod(uiThread = true)
+    public void openMemberPicker(String optionsJson, UniJSCallback callback) {
+        try {
+            MemberPickerOptions options = MemberPickerOptions.fromJson(optionsJson);
+            if (options == null || options.requestId.isEmpty()) {
+                options = MemberPickerOptions.fromJson("");
+                options.requestId = "mp_" + System.currentTimeMillis();
+            }
+            sMemberPickerCallbacks.put(options.requestId, callback);
+
+            if ("sheet".equals(options.present) && mUniSDKInstance.getContext() instanceof Activity) {
+                final MemberPickerOptions finalOptions = options;
+                MemberPickerBottomSheet.show((Activity) mUniSDKInstance.getContext(), options,
+                    (success, canceled, members) -> {
+                        JSONObject result = new JSONObject();
+                        result.put("requestId", finalOptions.requestId);
+                        result.put("success", success);
+                        result.put("canceled", canceled);
+                        com.alibaba.fastjson.JSONArray arr = new com.alibaba.fastjson.JSONArray();
+                        if (members != null) {
+                            for (Member m : members) {
+                                arr.add(m.toJson());
+                            }
+                        }
+                        result.put("members", arr);
+                        UniJSCallback cb = sMemberPickerCallbacks.remove(finalOptions.requestId);
+                        if (cb != null) {
+                            cb.invokeAndKeepAlive(result);
+                        }
+                    });
+                return;
+            }
+
+            // uniapp 默认整页（原生层级高、生命周期稳）
+            MemberPickerActivity.start(mUniSDKInstance.getContext(), optionsJson);
+        } catch (Exception e) {
+            e.printStackTrace();
+            if (callback != null) {
+                JSONObject result = new JSONObject();
+                result.put("success", false);
+                result.put("canceled", true);
+                result.put("members", new com.alibaba.fastjson.JSONArray());
+                callback.invoke(result);
+            }
+        }
+    }
+
+    /** MemberPickerActivity 选中/取消后回传结果（requestId 匹配） */
+    public static void deliverMemberPickResult(String requestId, String resultJson) {
+        if (requestId == null) {
+            return;
+        }
+        UniJSCallback cb = sMemberPickerCallbacks.remove(requestId);
+        if (cb != null) {
+            try {
+                cb.invokeAndKeepAlive(JSON.parseObject(resultJson));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    @UniJSMethod(uiThread = true)
+    public void sendCustomCard(String payload, int subType, String conversationID, String conversationType,
+        UniJSCallback callback) {
+        try {
+            im.zego.zim.enums.ZIMConversationType type = "group".equals(conversationType)
+                ? im.zego.zim.enums.ZIMConversationType.GROUP
+                : im.zego.zim.enums.ZIMConversationType.PEER;
+            ZIMKit.sendCustomMessage(payload, subType, conversationID, type, error -> {
+                boolean success = error == null || error.code == im.zego.zim.enums.ZIMErrorCode.SUCCESS;
+                System.out.println("[CardSend] subType=" + subType + " conversationId=" + conversationID
+                    + " success=" + success
+                    + " error=" + (error == null ? "" : (error.code + ":" + error.message)));
+                JSONObject result = new JSONObject();
+                result.put("success", success);
+                result.put("message", error == null ? "" : error.message);
+                if (callback != null) {
+                    callback.invoke(result);
+                }
+            });
+        } catch (Exception e) {
+            e.printStackTrace();
+            JSONObject result = new JSONObject();
+            result.put("success", false);
+            result.put("message", e.getMessage());
+            if (callback != null) {
+                callback.invoke(result);
+            }
+        }
+    }
+
+    @UniJSMethod(uiThread = true)
+    public void updateRedPacketState(String redPacketId, String payloadJson, UniJSCallback callback) {
+        try {
+            ZIMKitMessageFragment.updateRedPacketState(redPacketId, payloadJson);
+            JSONObject result = new JSONObject();
+            result.put("success", true);
+            if (callback != null) {
+                callback.invoke(result);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            JSONObject result = new JSONObject();
+            result.put("success", false);
+            result.put("message", e.getMessage());
+            if (callback != null) {
+                callback.invoke(result);
+            }
+        }
+    }
+
+    @UniJSMethod(uiThread = true)
+    public void getConversationListForShare(UniJSCallback callback) {
+        try {
+            ZIMConversationQueryConfig config = new ZIMConversationQueryConfig();
+            config.count = 100;
+            ZegoSignalingPlugin.getInstance().queryConversationList(config, (conversationList, errorInfo) -> {
+                com.alibaba.fastjson.JSONArray arr = new com.alibaba.fastjson.JSONArray();
+                if (conversationList != null) {
+                    for (im.zego.zim.entity.ZIMConversation conv : conversationList) {
+                        com.alibaba.fastjson.JSONObject obj = new com.alibaba.fastjson.JSONObject();
+                        obj.put("conversationID", conv.conversationID);
+                        String name = conv.conversationName;
+                        obj.put("conversationName", (name == null || name.isEmpty()) ? conv.conversationID : name);
+                        obj.put("conversationAvatarUrl",
+                            conv.conversationAvatarUrl == null ? "" : conv.conversationAvatarUrl);
+                        obj.put("conversationType",
+                            conv.type == im.zego.zim.enums.ZIMConversationType.PEER ? "peer" : "group");
+                        arr.add(obj);
+                    }
+                }
+                com.alibaba.fastjson.JSONObject result = new com.alibaba.fastjson.JSONObject();
+                result.put("list", arr);
+                if (callback != null) {
+                    callback.invoke(result);
+                }
+            });
+        } catch (Exception e) {
+            e.printStackTrace();
+            com.alibaba.fastjson.JSONObject result = new com.alibaba.fastjson.JSONObject();
+            result.put("list", new com.alibaba.fastjson.JSONArray());
+            if (callback != null) {
+                callback.invoke(result);
+            }
+        }
+    }
+
+    @UniJSMethod(uiThread = true)
+    public void queryFriendList(UniJSCallback callback) {
+        try {
+            ZIMFriendListQueryConfig config = new ZIMFriendListQueryConfig();
+            config.count = 100;
+            zimInstance().queryFriendList(config, (friendList, nextFlag, errorInfo) -> {
+                JSONObject result = new JSONObject();
+                result.put("success", errorInfo.code == ZIMErrorCode.SUCCESS);
+                result.put("list", toFriendJsonArray(friendList));
+                result.put("nextFlag", nextFlag);
+                result.put("message", errorInfo.message);
+                if (callback != null) callback.invoke(result);
+            });
+        } catch (Exception e) {
+            invokeFail(callback, e);
+        }
+    }
+
+    @UniJSMethod(uiThread = true)
+    public void sendFriendApplication(String memberId, String applyMessage, UniJSCallback callback) {
+        try {
+            ZIMFriendApplicationSendConfig config = new ZIMFriendApplicationSendConfig();
+            config.wording = applyMessage == null ? "" : applyMessage;
+            zimInstance().sendFriendApplication(toZimUserId(memberId), config,
+                (applicationInfo, errorInfo) -> {
+                    JSONObject result = new JSONObject();
+                    result.put("success", errorInfo.code == ZIMErrorCode.SUCCESS);
+                    result.put("message", errorInfo.message);
+                    if (applicationInfo != null) {
+                        result.put("application", applicationInfoToJson(applicationInfo));
+                    }
+                    if (callback != null) callback.invoke(result);
+                });
+        } catch (Exception e) {
+            invokeFail(callback, e);
+        }
+    }
+
+    @UniJSMethod(uiThread = true)
+    public void queryFriendApplicationList(UniJSCallback callback) {
+        try {
+            ZIMFriendApplicationListQueryConfig config = new ZIMFriendApplicationListQueryConfig();
+            config.count = 100;
+            zimInstance().queryFriendApplicationList(config,
+                (applicationList, nextFlag, errorInfo) -> {
+                    JSONObject result = new JSONObject();
+                    result.put("success", errorInfo.code == ZIMErrorCode.SUCCESS);
+                    result.put("list", toApplicationJsonArray(applicationList));
+                    result.put("nextFlag", nextFlag);
+                    result.put("message", errorInfo.message);
+                    if (callback != null) callback.invoke(result);
+                });
+        } catch (Exception e) {
+            invokeFail(callback, e);
+        }
+    }
+
+    @UniJSMethod(uiThread = true)
+    public void acceptFriendApplication(String memberId, UniJSCallback callback) {
+        try {
+            zimInstance().acceptFriendApplication(toZimUserId(memberId), new ZIMFriendApplicationAcceptConfig(),
+                (friendInfo, errorInfo) -> {
+                    JSONObject result = new JSONObject();
+                    result.put("success", errorInfo.code == ZIMErrorCode.SUCCESS);
+                    result.put("message", errorInfo.message);
+                    if (friendInfo != null) {
+                        result.put("friend", friendInfoToJson(friendInfo));
+                    }
+                    if (callback != null) callback.invoke(result);
+                });
+        } catch (Exception e) {
+            invokeFail(callback, e);
+        }
+    }
+
+    @UniJSMethod(uiThread = true)
+    public void rejectFriendApplication(String memberId, UniJSCallback callback) {
+        try {
+            zimInstance().rejectFriendApplication(toZimUserId(memberId), new ZIMFriendApplicationRejectConfig(),
+                (userInfo, errorInfo) -> {
+                    JSONObject result = new JSONObject();
+                    result.put("success", errorInfo.code == ZIMErrorCode.SUCCESS);
+                    result.put("message", errorInfo.message);
+                    if (userInfo != null) {
+                        result.put("user", userInfoToJson(userInfo));
+                    }
+                    if (callback != null) callback.invoke(result);
+                });
+        } catch (Exception e) {
+            invokeFail(callback, e);
+        }
+    }
+
+    @UniJSMethod(uiThread = true)
+    public void deleteFriend(String memberId, UniJSCallback callback) {
+        try {
+            ArrayList<String> ids = new ArrayList<>();
+            ids.add(toZimUserId(memberId));
+            zimInstance().deleteFriends(ids, new ZIMFriendDeleteConfig(),
+                (errorUserList, errorInfo) -> {
+                    JSONObject result = new JSONObject();
+                    result.put("success", errorInfo.code == ZIMErrorCode.SUCCESS);
+                    result.put("message", errorInfo.message);
+                    if (callback != null) callback.invoke(result);
+                });
+        } catch (Exception e) {
+            invokeFail(callback, e);
+        }
+    }
+
+    @UniJSMethod(uiThread = true)
+    public void searchLocalFriends(String keyword, UniJSCallback callback) {
+        try {
+            ZIMFriendSearchConfig config = new ZIMFriendSearchConfig();
+            config.count = 100;
+            config.keywords = new ArrayList<>();
+            config.keywords.add(keyword == null ? "" : keyword);
+            config.isAlsoMatchFriendAlias = true;
+            zimInstance().searchLocalFriends(config, (friendList, nextFlag, errorInfo) -> {
+                JSONObject result = new JSONObject();
+                result.put("success", errorInfo.code == ZIMErrorCode.SUCCESS);
+                result.put("list", toFriendJsonArray(friendList));
+                result.put("nextFlag", nextFlag);
+                result.put("message", errorInfo.message);
+                if (callback != null) callback.invoke(result);
+            });
+        } catch (Exception e) {
+            invokeFail(callback, e);
+        }
+    }
+
+    @UniJSMethod(uiThread = true)
+    public void queryUsersInfo(String memberIdsJson, UniJSCallback callback) {
+        try {
+            List<String> zimIds = new ArrayList<>();
+            com.alibaba.fastjson.JSONArray arr = com.alibaba.fastjson.JSONArray.parseArray(memberIdsJson);
+            for (int i = 0; i < arr.size(); i++) {
+                zimIds.add(toZimUserId(arr.getString(i)));
+            }
+            ZIMUsersInfoQueryConfig config = new ZIMUsersInfoQueryConfig();
+            config.isQueryFromServer = true;
+            zimInstance().queryUsersInfo(zimIds, config, new ZIMUsersInfoQueriedCallback() {
+                @Override
+                public void onUsersInfoQueried(ArrayList<ZIMUserFullInfo> userList,
+                    ArrayList<ZIMErrorUserInfo> errorUserList, ZIMError errorInfo) {
+                    JSONObject result = new JSONObject();
+                    result.put("success", errorInfo.code == ZIMErrorCode.SUCCESS);
+                    result.put("list", toUserFullJsonArray(userList));
+                    result.put("message", errorInfo.message);
+                    if (callback != null) callback.invoke(result);
+                }
+            });
+        } catch (Exception e) {
+            invokeFail(callback, e);
+        }
+    }
+
+    // ==================== 好友桥接辅助 ====================
+
+    private static ZIM zimInstance() {
+        return ZIMKitCore.getInstance().zim();
+    }
+
+    private static String toZimUserId(String memberId) {
+        if (memberId == null) return null;
+        return memberId.startsWith("user_") ? memberId : ("user_" + memberId);
+    }
+
+    private static String toMemberId(String zimUserId) {
+        if (zimUserId == null) return null;
+        return zimUserId.startsWith("user_") ? zimUserId.substring("user_".length()) : zimUserId;
+    }
+
+    private static JSONObject friendInfoToJson(ZIMFriendInfo friend) {
+        JSONObject obj = new JSONObject();
+        if (friend == null) return obj;
+        obj.put("zimUserId", friend.userID == null ? "" : friend.userID);
+        obj.put("memberId", toMemberId(friend.userID));
+        obj.put("userName", friend.userName == null ? "" : friend.userName);
+        obj.put("avatarUrl", friend.userAvatarUrl == null ? "" : friend.userAvatarUrl);
+        obj.put("remark", friend.friendAlias == null ? "" : friend.friendAlias);
+        obj.put("createTime", friend.createTime);
+        return obj;
+    }
+
+    private static com.alibaba.fastjson.JSONArray toFriendJsonArray(ArrayList<ZIMFriendInfo> list) {
+        com.alibaba.fastjson.JSONArray result = new com.alibaba.fastjson.JSONArray();
+        if (list == null) return result;
+        for (ZIMFriendInfo friend : list) {
+            result.add(friendInfoToJson(friend));
+        }
+        return result;
+    }
+
+    private static JSONObject applicationInfoToJson(ZIMFriendApplicationInfo info) {
+        JSONObject obj = new JSONObject();
+        if (info == null) return obj;
+        ZIMUserInfo applyUser = info.applyUser;
+        if (applyUser != null) {
+            obj.put("zimUserId", applyUser.userID == null ? "" : applyUser.userID);
+            obj.put("memberId", toMemberId(applyUser.userID));
+            obj.put("userName", applyUser.userName == null ? "" : applyUser.userName);
+            obj.put("avatarUrl", applyUser.userAvatarUrl == null ? "" : applyUser.userAvatarUrl);
+        } else {
+            obj.put("zimUserId", "");
+            obj.put("memberId", "");
+            obj.put("userName", "");
+            obj.put("avatarUrl", "");
+        }
+        obj.put("wording", info.wording == null ? "" : info.wording);
+        obj.put("createTime", info.createTime);
+        obj.put("updateTime", info.updateTime);
+        obj.put("state", info.state == null ? "" : info.state.name());
+        obj.put("type", info.type == null ? "" : info.type.name());
+        return obj;
+    }
+
+    private static com.alibaba.fastjson.JSONArray toApplicationJsonArray(ArrayList<ZIMFriendApplicationInfo> list) {
+        com.alibaba.fastjson.JSONArray result = new com.alibaba.fastjson.JSONArray();
+        if (list == null) return result;
+        for (ZIMFriendApplicationInfo info : list) {
+            result.add(applicationInfoToJson(info));
+        }
+        return result;
+    }
+
+    private static JSONObject userInfoToJson(ZIMUserInfo user) {
+        JSONObject obj = new JSONObject();
+        if (user == null) return obj;
+        obj.put("zimUserId", user.userID == null ? "" : user.userID);
+        obj.put("memberId", toMemberId(user.userID));
+        obj.put("userName", user.userName == null ? "" : user.userName);
+        obj.put("avatarUrl", user.userAvatarUrl == null ? "" : user.userAvatarUrl);
+        return obj;
+    }
+
+    private static JSONObject userFullInfoToJson(ZIMUserFullInfo user) {
+        JSONObject obj = new JSONObject();
+        if (user == null) return obj;
+        obj.put("zimUserId", user.baseInfo == null ? "" : user.baseInfo.userID);
+        obj.put("memberId", user.baseInfo == null ? "" : toMemberId(user.baseInfo.userID));
+        obj.put("userName", user.baseInfo == null ? "" : user.baseInfo.userName);
+        obj.put("avatarUrl", user.userAvatarUrl == null ? "" : user.userAvatarUrl);
+        obj.put("extendedData", user.extendedData == null ? "" : user.extendedData);
+        return obj;
+    }
+
+    private static com.alibaba.fastjson.JSONArray toUserFullJsonArray(ArrayList<ZIMUserFullInfo> list) {
+        com.alibaba.fastjson.JSONArray result = new com.alibaba.fastjson.JSONArray();
+        if (list == null) return result;
+        for (ZIMUserFullInfo user : list) {
+            result.add(userFullInfoToJson(user));
+        }
+        return result;
+    }
+
+    private static void invokeFail(UniJSCallback callback, Exception e) {
+        e.printStackTrace();
+        JSONObject result = new JSONObject();
+        result.put("success", false);
+        result.put("message", e.getMessage());
+        if (callback != null) {
+            callback.invoke(result);
+        }
+    }
+
+    private void dispatchCardEvent(String action, String data) {
+        System.out.println("[CardBridge] dispatch action=" + action + ", cardJsCallback=" + (cardJsCallback != null));
+        try {
+            JSONObject payload = data == null ? new JSONObject() : JSON.parseObject(data);
+            // 红包页改为原生 Activity：直接从聊天页 startActivity，返回自动回到原聊天
+            if ("send_red_packet".equals(action)) {
+                RedPacketSendActivity.start(mUniSDKInstance.getContext(),
+                    payload.getString("conversationId"), payload.getString("conversationType"));
+                return;
+            }
+            if ("open_card".equals(action) && "red_packet".equals(payload.getString("cardType"))) {
+                JSONObject detail = payload.getJSONObject("detail");
+                JSONObject sender = payload.getJSONObject("sender");
+                RedPacketDetailActivity.start(mUniSDKInstance.getContext(),
+                    detail == null ? "" : detail.getString("redPacketId"),
+                    payload.getString("conversationId"),
+                    sender == null ? "" : sender.getString("userId"),
+                    sender == null ? "" : sender.getString("userName"),
+                    sender == null ? "" : sender.getString("avatarUrl"));
+                return;
+            }
+            if (cardJsCallback == null) {
+                System.out.println("[CardBridge] cardJsCallback is null, action=" + action);
+                return;
+            }
+            // 其他卡片（商品/店铺/文章）走 uniapp 页面：先通知 JS，再关闭聊天页（避免 finish 影响回调投递）
+            JSONObject event = new JSONObject();
+            event.put("event", action);
+            event.put("data", payload);
+            cardJsCallback.invokeAndKeepAlive(event);
+            ZIMKitMessageActivity.finishCurrent();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     @UniJSMethod(uiThread = false)
     public void registerGlobalListener() { // 1. ACCEPT THE CALLBACK PARAMETER
         System.out.println("Initializing global real-time event pipeline...");

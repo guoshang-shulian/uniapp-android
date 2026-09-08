@@ -24,6 +24,7 @@
     app:layout_constraintTop_toTopOf="parent">
 
     <ImageView
+      android:id="@+id/iv_more_icon"
       android:layout_width="52dp"
       android:layout_height="52dp"
       android:layout_gravity="center"
@@ -32,6 +33,7 @@
       android:src="@{model.expandIcon}" />
 
     <TextView
+      android:id="@+id/tv_more_label"
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
       android:layout_gravity="center"

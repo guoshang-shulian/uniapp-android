@@ -4,6 +4,7 @@ import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import androidx.annotation.NonNull;
 import androidx.databinding.DataBindingUtil;
 import androidx.databinding.ViewDataBinding;
@@ -12,6 +13,7 @@ import com.zegocloud.zimkit.BR;
 import com.zegocloud.zimkit.R;
 import com.zegocloud.zimkit.components.message.adapter.ZIMKitInputMoreAdapter.InputMoreItemViewHolder;
 import com.zegocloud.zimkit.components.message.model.ZIMKitInputButtonModel;
+import com.zegocloud.zimkit.services.config.ZIMKitInputButtonName;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,6 +33,15 @@ public class ZIMKitInputMoreAdapter extends RecyclerView.Adapter<InputMoreItemVi
     @Override
     public void onBindViewHolder(@NonNull InputMoreItemViewHolder holder, int position) {
         holder.bind(BR.model, itemModels.get(position));
+        ZIMKitInputButtonModel model = itemModels.get(position);
+        // 微信式“红包”按钮：去掉白底方块，红包装直接呈现在灰底上（与微信“+”面板一致）
+        if (model != null && model.getButtonName() == ZIMKitInputButtonName.RED_PACKET) {
+            ImageView icon = holder.itemView.findViewById(R.id.iv_more_icon);
+            if (icon != null) {
+                icon.setBackground(null);
+                icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            }
+        }
     }
 
     @Override

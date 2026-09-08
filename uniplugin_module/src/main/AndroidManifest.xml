@@ -2,6 +2,9 @@
 <application>
 <activity android:name="io.dcloud.uniplugin.activity.NativePageActivity"
     android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"></activity>
-
+<activity android:name="io.dcloud.uniplugin.activity.RedPacketSendActivity"
+    android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"></activity>
+<activity android:name="io.dcloud.uniplugin.activity.RedPacketDetailActivity"
+    android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"></activity>
 </application>
 </manifest>
