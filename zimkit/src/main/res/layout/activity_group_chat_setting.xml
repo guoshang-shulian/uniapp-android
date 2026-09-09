@@ -7,10 +7,16 @@
 
   </data>
 
+  <androidx.core.widget.NestedScrollView
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:scrollbars="none">
+
   <androidx.constraintlayout.widget.ConstraintLayout
     android:id="@+id/main"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
+    android:layout_height="wrap_content"
     android:background="@color/color_eff0f2"
     tools:context=".components.message.ui.ZIMKitGroupChatSettingActivity">
 
@@ -75,6 +81,47 @@
       android:orientation="vertical"
       app:layout_constraintTop_toBottomOf="@+id/group_set_members">
 
+      <LinearLayout
+        android:id="@+id/group_name_row"
+        android:layout_width="match_parent"
+        android:layout_height="54dp"
+        android:background="?selectableItemBackground"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="15dp"
+        android:paddingEnd="9dp">
+
+        <TextView
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_weight="1"
+          android:text="群聊名称"
+          android:textColor="@color/color_2a2a2a"
+          android:textSize="15sp" />
+
+        <TextView
+          android:id="@+id/group_name_value"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layout_marginEnd="7dp"
+          android:text="群聊"
+          android:textColor="@color/color_8e9093"
+          android:textSize="14sp" />
+
+        <ImageView
+          android:layout_width="16dp"
+          android:layout_height="16dp"
+          android:src="@drawable/zimkit_icon_group_item_next"
+          android:contentDescription="修改群聊名称" />
+      </LinearLayout>
+
+      <View
+        android:id="@+id/chat_setting_divider1"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginStart="16dp"
+        android:background="@color/color_e6e6e6" />
+
       <com.zegocloud.zimkit.components.message.ui.AsynchronousSwitch
         android:id="@+id/do_not_disturb"
         android:layout_width="match_parent"
@@ -88,6 +135,7 @@
         android:textSize="15sp" />
 
       <View
+        android:id="@+id/chat_setting_divider2"
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:layout_marginStart="16dp"
@@ -174,5 +222,22 @@
     </LinearLayout>
 s
 
+        <TextView
+          android:id="@+id/exit_group_btn"
+          android:layout_width="0dp"
+          android:layout_height="48dp"
+          android:layout_marginStart="16dp"
+          android:layout_marginTop="48dp"
+          android:layout_marginEnd="16dp"
+          android:background="@drawable/zimkit_shape_8dp_white"
+          android:gravity="center"
+          android:text="退出群聊"
+          android:textColor="#F44F53"
+          android:textSize="15sp"
+          app:layout_constraintTop_toBottomOf="@+id/group_info_layout"
+          app:layout_constraintStart_toStartOf="parent"
+          app:layout_constraintEnd_toEndOf="parent" />
+
   </androidx.constraintlayout.widget.ConstraintLayout>
+  </androidx.core.widget.NestedScrollView>
 </layout>

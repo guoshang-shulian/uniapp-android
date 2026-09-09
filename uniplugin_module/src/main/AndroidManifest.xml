@@ -9,6 +9,9 @@
 <activity android:name="io.dcloud.uniplugin.activity.RedPacketDetailActivity"
     android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
     android:exported="false"></activity>
+<activity android:name="io.dcloud.uniplugin.activity.MemberInfoActivity"
+    android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
+    android:exported="false"></activity>
 <activity android:name="io.dcloud.uniplugin.memberpicker.MemberPickerActivity"
     android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
     android:exported="false"></activity>

@@ -74,6 +74,12 @@ public abstract class MemberPickerDataSource {
     }
 
     public static MemberPickerDataSource create(MemberPickerOptions options) {
+        if (options.previewMock) {
+            return new PreviewSource(options);
+        }
+        if ("CUSTOM".equals(options.dataSource)) {
+            return new CustomMemberSource(options);
+        }
         if ("FRIENDS".equals(options.dataSource)) {
             return new FriendMemberSource(options);
         }
@@ -118,6 +124,13 @@ public abstract class MemberPickerDataSource {
             ZIMGroupMemberQueryConfig config = new ZIMGroupMemberQueryConfig();
             config.count = 100;
             config.nextFlag = nextFlag;
+            if (ZIMKitCore.getInstance().zim() == null) {
+                loading = false;
+                if (cb != null) {
+                    cb.onError(-2, "IM 未连接");
+                }
+                return;
+            }
             ZIMKitCore.getInstance().zim().queryGroupMemberList(options.conversationId, config,
                 new ZIMGroupMemberListQueriedCallback() {
                     @Override
@@ -158,6 +171,9 @@ public abstract class MemberPickerDataSource {
                                     m.groupRole = "MEMBER";
                                 }
                                 m.isMuted = info.muteExpiredTime > 0;
+                                if (options.muteOnly && !m.isMuted) {
+                                    continue;
+                                }
                                 fillPinyin(m);
                                 isExcluded(m);
                                 if (!seen.contains(m.memberId)) {
@@ -165,6 +181,9 @@ public abstract class MemberPickerDataSource {
                                     cache.add(m);
                                 }
                             }
+                        }
+                        if (!applyKickPermission(cache, cb)) {
+                            return;
                         }
                         sortMembers(cache);
                         if (cb != null) {
@@ -187,6 +206,56 @@ public abstract class MemberPickerDataSource {
             if (cb != null) {
                 cb.onLoaded(result, true);
             }
+        }
+
+        /** 踢人权限：群主可踢除自己外所有人；管理员只能踢普通成员（群主/管理员不可选）；普通成员无权限 */
+        private boolean applyKickPermission(List<Member> members, Callback cb) {
+            if (!"KICK".equals(options.action)) {
+                return true;
+            }
+            String selfZim = null;
+            try {
+                selfZim = ZIMKitCore.getInstance().getLocalUser() == null ? null
+                    : ZIMKitCore.getInstance().getLocalUser().getId();
+            } catch (Exception ignored) {
+            }
+            int selfRole = 3;
+            for (Member m : members) {
+                if (selfZim != null && selfZim.equals(m.zimUserId)) {
+                    selfRole = roleOf(m.groupRole);
+                    break;
+                }
+            }
+            if (selfRole == 3) {
+                cache.clear();
+                if (cb != null) {
+                    cb.onError(-3, "无踢人权限（仅群主/管理员可踢人）");
+                }
+                return false;
+            }
+            for (Member m : members) {
+                boolean disable = m.zimUserId != null && m.zimUserId.equals(selfZim);
+                if (selfRole == 2 && ("OWNER".equals(m.groupRole) || "ADMIN".equals(m.groupRole))) {
+                    disable = true;
+                }
+                if (disable) {
+                    m.disabled = true;
+                    if (m.disabledReason == null || m.disabledReason.isEmpty()) {
+                        m.disabledReason = "该角色不可选择";
+                    }
+                }
+            }
+            return true;
+        }
+
+        private int roleOf(String role) {
+            if ("OWNER".equals(role)) {
+                return 1;
+            }
+            if ("ADMIN".equals(role)) {
+                return 2;
+            }
+            return 3;
         }
 
         private boolean contains(String s, String key) {
@@ -265,6 +334,13 @@ public abstract class MemberPickerDataSource {
             loading = true;
             ZIMFriendListQueryConfig config = new ZIMFriendListQueryConfig();
             config.count = 100;
+            if (ZIMKitCore.getInstance().zim() == null) {
+                loading = false;
+                if (cb != null) {
+                    cb.onError(-2, "IM 未连接");
+                }
+                return;
+            }
             ZIMKitCore.getInstance().zim().queryFriendList(config,
                 (friendList, flag, errorInfo) -> {
                     loading = false;
@@ -320,6 +396,109 @@ public abstract class MemberPickerDataSource {
                 if (key.isEmpty() || contains(m.displayName(), key) || contains(m.userName, key)
                     || contains(m.remark, key) || contains(m.pinyin, key)
                     || contains(m.pinyin.replace("sh", "s"), key)) {
+                    result.add(m);
+                }
+            }
+            if (cb != null) {
+                cb.onLoaded(result, true);
+            }
+        }
+
+        private boolean contains(String s, String key) {
+            return s != null && !s.isEmpty() && s.toLowerCase().contains(key.toLowerCase());
+        }
+    }
+
+    /** ------------------ 外部传入成员（CUSTOM，如后端禁言列表） ------------------ */
+    static class CustomMemberSource extends MemberPickerDataSource {
+
+        CustomMemberSource(MemberPickerOptions options) {
+            super(options);
+        }
+
+        @Override
+        public void loadFirst(Callback cb) {
+            cache.clear();
+            for (Member m : options.customMembers) {
+                if (m != null) {
+                    if (m.pinyin == null || m.pinyin.isEmpty()) {
+                        fillPinyin(m);
+                    }
+                    cache.add(m);
+                }
+            }
+            finished = true;
+            if (cb != null) {
+                cb.onLoaded(copy(cache), true);
+            }
+        }
+
+        @Override
+        public void loadMore(Callback cb) {
+            if (cb != null) {
+                cb.onLoaded(copy(cache), true);
+            }
+        }
+
+        @Override
+        public void search(String keyword, Callback cb) {
+            String key = keyword == null ? "" : keyword.trim();
+            List<Member> result = new ArrayList<>();
+            for (Member m : cache) {
+                if (m != null && m.displayName() != null
+                    && m.displayName().toLowerCase().contains(key.toLowerCase())) {
+                    result.add(m);
+                }
+            }
+            finished = true;
+            if (cb != null) {
+                cb.onLoaded(result, true);
+            }
+        }
+    }
+
+    /** ------------------ 禁言预览（测试数据，样式评审用） ------------------ */
+    static class PreviewSource extends MemberPickerDataSource {
+
+        PreviewSource(MemberPickerOptions options) {
+            super(options);
+        }
+
+        @Override
+        public void loadFirst(Callback cb) {
+            cache.clear();
+            String[] names = {"张三", "李四", "王五", "赵六", "石昊"};
+            for (String name : names) {
+                Member m = new Member();
+                m.memberId = "preview_" + name;
+                m.zimUserId = "user_preview_" + name;
+                m.userName = name;
+                m.avatarUrl = "";
+                m.remark = "";
+                m.groupRole = "MEMBER";
+                m.isMuted = true;
+                fillPinyin(m);
+                cache.add(m);
+            }
+            finished = true;
+            if (cb != null) {
+                cb.onLoaded(copy(cache), true);
+            }
+        }
+
+        @Override
+        public void loadMore(Callback cb) {
+            if (cb != null) {
+                cb.onLoaded(copy(cache), true);
+            }
+        }
+
+        @Override
+        public void search(String keyword, Callback cb) {
+            String key = keyword == null ? "" : keyword.trim();
+            List<Member> result = new ArrayList<>();
+            for (Member m : cache) {
+                if (key.isEmpty() || contains(m.displayName(), key) || contains(m.pinyin, key)) {
                     result.add(m);
                 }
             }

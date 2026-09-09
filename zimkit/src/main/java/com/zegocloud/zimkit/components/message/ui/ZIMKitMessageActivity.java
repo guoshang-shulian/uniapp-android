@@ -24,6 +24,8 @@ import com.zegocloud.zimkit.services.internal.ZIMKitEventHandler;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
+
 public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBinding, ViewModel> {
 
     private ZIMKitMessageFragment fragment;
@@ -52,6 +54,7 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
 
     @Override
     protected void initView() {
+        com.zegocloud.zimkit.common.utils.ZimkitStatusBar.setWhite(this);
         sCurrent = this;
         Bundle bundle = getIntent().getBundleExtra(ZIMKitConstant.RouterConstant.KEY_BUNDLE);
         title = bundle.getString(ZIMKitConstant.MessagePageConstant.KEY_TITLE);

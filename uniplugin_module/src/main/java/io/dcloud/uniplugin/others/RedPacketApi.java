@@ -14,6 +14,8 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 
+import java.util.concurrent.TimeUnit;
+
 /**
  * 红包业务接口（买家端）。
  * 请求头：accessToken + Authorization Bearer；Query：nonce/timestamp/sign（与 uniapp request.js 同规则）。
@@ -27,7 +29,12 @@ public class RedPacketApi {
     }
 
     private static final MediaType JSON_MEDIA_TYPE = MediaType.parse("application/json; charset=utf-8");
-    private static final OkHttpClient CLIENT = new OkHttpClient();
+    // 红包创建会扣积分，后端可能较慢：超时放大到 60s，避免“积分已扣但前端 timeout”
+    private static final OkHttpClient CLIENT = new OkHttpClient.Builder()
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
+        .build();
     private static final Random RANDOM = new Random();
 
     public static String baseUrl() {
@@ -104,6 +111,9 @@ public class RedPacketApi {
         CLIENT.newCall(request).enqueue(new okhttp3.Callback() {
             @Override
             public void onFailure(okhttp3.Call call, IOException e) {
+                System.out.println("[RedPacketApi] failure url=" + call.request().url()
+                    + " tokenLen=" + io.dcloud.uniplugin.TestModule.getBusinessToken().length()
+                    + " err=" + e.getMessage());
                 if (callback != null) {
                     callback.onError(-1, e.getMessage() == null ? "网络请求失败" : e.getMessage());
                 }
@@ -113,6 +123,11 @@ public class RedPacketApi {
             public void onResponse(okhttp3.Call call, Response response) throws IOException {
                 try (Response res = response) {
                     String body = res.body() == null ? "" : res.body().string();
+                    String brief = body.length() > 300 ? body.substring(0, 300) : body;
+                    System.out.println("[RedPacketApi] HTTP " + res.code()
+                        + " url=" + call.request().url()
+                        + " tokenLen=" + io.dcloud.uniplugin.TestModule.getBusinessToken().length()
+                        + " body=" + brief);
                     if (callback == null) {
                         return;
                     }
@@ -121,8 +136,14 @@ public class RedPacketApi {
                         if (json != null && Boolean.TRUE.equals(json.getBoolean("success"))) {
                             callback.onSuccess(json.getJSONObject("result"));
                         } else {
-                            callback.onError(res.code(),
-                                json == null ? ("HTTP " + res.code()) : json.getString("message"));
+                            String msg = json == null ? null : json.getString("message");
+                            if (msg == null || msg.isEmpty()) {
+                                msg = json == null ? null : json.getString("msg");
+                            }
+                            if (msg == null || msg.isEmpty()) {
+                                msg = "HTTP " + res.code();
+                            }
+                            callback.onError(res.code(), msg);
                         }
                     } catch (Exception parseError) {
                         callback.onError(res.code(), "响应解析失败: " + body);

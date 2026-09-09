@@ -94,6 +94,15 @@ public class RedPacketSendActivity extends android.app.Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_red_packet_send);
+        // 状态栏改为页面背景色（灰色 #EDEDED + 深色图标）
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                getWindow().setStatusBarColor(android.graphics.Color.parseColor("#EDEDED"));
+                getWindow().getDecorView().setSystemUiVisibility(
+                    android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+            }
+        } catch (Exception ignored) {
+        }
 
         conversationId = getIntent().getStringExtra("conversationId");
         conversationType = getIntent().getStringExtra("conversationType");
@@ -153,6 +162,16 @@ public class RedPacketSendActivity extends android.app.Activity {
 
             @Override
             public void afterTextChanged(Editable s) {
+                // 金额/积分最多两位小数（正常红包单个积分 / 拼手气总积分 / 专属积分）
+                String raw = s == null ? "" : s.toString();
+                if (raw.isEmpty() || raw.equals(".") || raw.equals("0.")) {
+                    return;
+                }
+                int dot = raw.indexOf('.');
+                if (dot >= 0 && raw.length() - dot - 1 > 2) {
+                    String fixed = raw.substring(0, dot + 3);
+                    s.replace(0, s.length(), fixed);
+                }
             }
         };
         normalAmount.addTextChangedListener(watcher);
@@ -383,11 +402,13 @@ public class RedPacketSendActivity extends android.app.Activity {
         params.put("conversationType", conversationType);
         params.put("type", currentType);
         params.put("totalPoints", String.format("%.2f", total));
-        params.put("unitPoints", currentType.equals("normal")
-            ? parseDouble(normalAmount.getText().toString()) : 0);
+        // unitPoints 仅 normal/exclusive 必填；fortune 不传
+        if (currentType.equals("normal") || currentType.equals("exclusive")) {
+            params.put("unitPoints", parseDouble(currentType.equals("normal")
+                ? normalAmount.getText().toString() : exclusiveAmount.getText().toString()));
+        }
         params.put("count", currentType.equals("exclusive") ? 1 : count);
         params.put("toUserId", currentType.equals("exclusive") ? selectedMemberId : "");
-        params.put("toUserName", currentType.equals("exclusive") ? selectedMemberName : "");
         params.put("remark", remarkInput.getText().toString().isEmpty()
             ? "恭喜发财，大吉大利" : remarkInput.getText().toString());
         params.put("clientRequestId", "rp_" + System.currentTimeMillis() + "_" + (int) (Math.random() * 10000));
@@ -435,8 +456,14 @@ public class RedPacketSendActivity extends android.app.Activity {
                         String msg = message == null || message.isEmpty()
                             ? ("错误码 " + code) : message;
                         System.out.println("[RedPacketSend] create error code=" + code + " msg=" + msg);
-                        showValidation("发送失败：" + msg);
-                        toast(msg);
+                        if (code == -1 && msg.toLowerCase().contains("timeout")) {
+                            // 超时：后端可能已扣积分/已创建（clientRequestId 幂等）；避免用户重复提交
+                            showValidation("发送超时：若积分已扣除，请勿重复提交，稍后在红包详情确认");
+                            toast("发送超时，请勿重复提交");
+                        } else {
+                            showValidation("发送失败：" + msg);
+                            toast(msg);
+                        }
                     });
                 }
             });
@@ -485,6 +512,13 @@ public class RedPacketSendActivity extends android.app.Activity {
         payload.put("createdAt", System.currentTimeMillis());
 
         JSONObject d = detail == null ? new JSONObject() : detail;
+        // 后端 create 可能返回 id 而不是 redPacketId → 统一为 redPacketId（详情页/领取依赖它）
+        if (d.getString("redPacketId") == null || d.getString("redPacketId").isEmpty()) {
+            String id2 = d.getString("id");
+            if (id2 != null && !id2.isEmpty()) {
+                d.put("redPacketId", id2);
+            }
+        }
         d.put("type", currentType);
         d.put("totalPoints", d.getDoubleValue("totalPoints"));
         d.put("unitPoints", currentType.equals("normal") ? parseDouble(normalAmount.getText().toString()) : 0);
@@ -494,7 +528,10 @@ public class RedPacketSendActivity extends android.app.Activity {
         d.put("toUserName", currentType.equals("exclusive") ? selectedMemberName : "");
         d.put("remark", remarkInput.getText().toString().isEmpty()
             ? "恭喜发财，大吉大利" : remarkInput.getText().toString());
-        d.put("status", d.getString("status") == null ? "active" : d.getString("status"));
+        // 状态严格以后端返回为准（不自行默认 active，避免误导）
+        if (d.getString("status") != null) {
+            d.put("status", d.getString("status"));
+        }
         d.put("drawCount", d.getIntValue("drawCount"));
         d.put("myDrawPoints", d.getDoubleValue("myDrawPoints"));
         payload.put("detail", d);

@@ -17,7 +17,18 @@ import java.util.List;
 public class GroupMemberShortcutAdapter extends RecyclerView.Adapter<ViewHolder> {
 
     private List<ZIMKitGroupMemberInfo> memberList = new ArrayList<>();
-    private static final ZIMKitGroupMemberInfo ADD = new ZIMKitGroupMemberInfo();
+    public static final ZIMKitGroupMemberInfo ADD = new ZIMKitGroupMemberInfo();
+    public static final ZIMKitGroupMemberInfo KICK = new ZIMKitGroupMemberInfo();
+    private boolean showKick = true;
+    private boolean showInvite = true;
+
+    public void setShowKick(boolean showKick) {
+        this.showKick = showKick;
+    }
+
+    public void setShowInvite(boolean showInvite) {
+        this.showInvite = showInvite;
+    }
 
 
     @NonNull
@@ -33,16 +44,19 @@ public class GroupMemberShortcutAdapter extends RecyclerView.Adapter<ViewHolder>
         ZIMKitGroupMemberInfo groupMember = memberList.get(position);
         ImageView memberIcon = holder.itemView.findViewById(R.id.member_icon);
         TextView memberName = holder.itemView.findViewById(R.id.member_name);
-        if (groupMember != ADD) {
+        if (groupMember == ADD) {
+            memberIcon.setImageResource(R.drawable.zimkit_icon_member_add);
+            memberName.setText(R.string.invite);
+        } else if (groupMember == KICK) {
+            memberIcon.setImageResource(R.drawable.zimkit_icon_member_kick);
+            memberName.setText("踢出");
+        } else {
             ZIMKitGlideLoader.displayMessageAvatarImage(memberIcon, groupMember.getAvatarUrl());
             if (TextUtils.isEmpty(groupMember.getNickName())) {
                 memberName.setText(groupMember.getName());
             } else {
                 memberName.setText(groupMember.getNickName());
             }
-        } else {
-            memberIcon.setImageResource(R.drawable.zimkit_icon_member_add);
-            memberName.setText(R.string.invite);
         }
     }
 
@@ -57,7 +71,12 @@ public class GroupMemberShortcutAdapter extends RecyclerView.Adapter<ViewHolder>
         if (this.memberList.size() > 9) {
             this.memberList = this.memberList.subList(0, 9);
         }
-        this.memberList.add(ADD);
+        if (showInvite) {
+            this.memberList.add(ADD);
+        }
+        if (showKick) {
+            this.memberList.add(KICK);
+        }
         notifyDataSetChanged();
     }
 

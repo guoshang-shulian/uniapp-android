@@ -53,6 +53,9 @@ public class ZIMKitMessageInputView extends LinearLayout {
     private InputCallback callback;
     private ZIMKitMessageModel repliedMessage;
     private OnGlobalLayoutListener globalLayoutListener;
+    private String normalHint = "";
+    private View muteMask;
+    private CharSequence normalHintSeq = "";
 
     public ZIMKitMessageInputView(Context context) {
         super(context);
@@ -109,7 +112,9 @@ public class ZIMKitMessageInputView extends LinearLayout {
         int maxButtons = 4;
         ZIMKitConfig zimKitConfig = ZIMKitCore.getInstance().getZimKitConfig();
         if (zimKitConfig != null && zimKitConfig.inputConfig != null && zimKitConfig.inputConfig.inputHint != null) {
-            binding.inputEdittext.setHint(zimKitConfig.inputConfig.inputHint);
+            normalHintSeq = zimKitConfig.inputConfig.inputHint;
+            normalHint = normalHintSeq.toString();
+            binding.inputEdittext.setHint(normalHintSeq);
         }
         List<ZIMKitInputButtonModel> buttonModels = new ArrayList<>();
         if (zimKitConfig != null && zimKitConfig.inputConfig != null) {
@@ -232,6 +237,41 @@ public class ZIMKitMessageInputView extends LinearLayout {
     }
 
     private static final String TAG = "ZIMKitInputView";
+
+    /** 禁言态：占位字「禁言中」+ 透明遮罩禁点底部输入面板；解除后恢复原样 */
+    public void setMutedState(boolean muted) {
+        post(() -> {
+            if (muted) {
+                binding.inputEdittext.setHint("禁言中");
+                if (muteMask == null) {
+                    muteMask = new View(getContext());
+                    muteMask.setBackgroundColor(0x33000000);
+                    muteMask.setClickable(true);
+                    muteMask.setFocusableInTouchMode(true);
+                    addView(muteMask, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+                } else {
+                    muteMask.setVisibility(View.VISIBLE);
+                }
+                hideKeyboard();
+            } else {
+                binding.inputEdittext.setHint(normalHintSeq);
+                if (muteMask != null) {
+                    muteMask.setVisibility(View.GONE);
+                }
+            }
+        });
+    }
+
+    private void hideKeyboard() {
+        try {
+            InputMethodManager imm = (InputMethodManager) getContext()
+                .getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null && getContext() instanceof AppCompatActivity) {
+                imm.hideSoftInputFromWindow(getWindowToken(), 0);
+            }
+        } catch (Exception ignored) {
+        }
+    }
 
     public static int dp2px(float v, DisplayMetrics displayMetrics) {
         return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, displayMetrics);

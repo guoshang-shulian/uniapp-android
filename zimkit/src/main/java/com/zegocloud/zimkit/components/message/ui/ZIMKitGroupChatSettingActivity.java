@@ -72,14 +72,31 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
 
     private ActivityGroupChatSettingBinding binding;
     private String mId;
+    private GroupMemberShortcutAdapter shortcutAdapter;
 
     private static final String TAG = "ZIMKitGroupChatSettingA";
     private ZIMKitDelegate zimKitDelegate;
 
+    private static ZIMKitGroupChatSettingActivity sInstance;
+
+    /** 退出群聊成功后一键回到社群首页（uniplugin 调用） */
+    public static void finishCurrent() {
+        if (sInstance != null) {
+            sInstance.finish();
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        sInstance = this;
+        com.zegocloud.zimkit.common.utils.ZimkitStatusBar.setWhite(this);
         binding = DataBindingUtil.setContentView(this, R.layout.activity_group_chat_setting);
+        // 显示「群聊名称 / 免打扰 / 置顶」设置块（XML 默认 gone，从未显示过）
+        View chatSetting = binding.getRoot().findViewById(R.id.chat_setting);
+        if (chatSetting != null) {
+            chatSetting.setVisibility(View.VISIBLE);
+        }
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
@@ -94,7 +111,8 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
         binding.groupSetTitleBar.hideRightButton();
         binding.groupSetTitleBar.setTitle(getString(R.string.chat_setting));
         //        binding.groupChatMembersShortcut.setAdapter();
-        GroupMemberShortcutAdapter shortcutAdapter = new GroupMemberShortcutAdapter();
+        GroupMemberShortcutAdapter shortcutAdapterLocal = new GroupMemberShortcutAdapter();
+        shortcutAdapter = shortcutAdapterLocal;
         List<ZIMKitGroupMemberInfo> groupMemberList = ZIMKitCore.getInstance().getGroupMemberList(mId);
         if (groupMemberList != null) {
             binding.groupMembersCount.setText(getString(R.string.group_members_detail, groupMemberList.size()));
@@ -125,6 +143,10 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
                     String title = info.getName();
                     groupIn.setText(groupId);
                     binding.groupSetTitleBar.setTitle(title);
+                    TextView groupNameValue = findViewById(R.id.group_name_value);
+                    if (groupNameValue != null) {
+                        groupNameValue.setText(title);
+                    }
                 }
             }
         });
@@ -147,16 +169,47 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
             }
         });
 
-        ZIMGroupMemberQueryConfig config = new ZIMGroupMemberQueryConfig();
-        config.count = 100;
-        ZIMKitCore.getInstance().queryGroupMemberList(mId, config, new QueryGroupMemberListCallback() {
-            @Override
-            public void onGroupMemberListQueried(String groupID, ArrayList<ZIMKitGroupMemberInfo> userList,
-                int nextFlag, ZIMError errorInfo) {
-                binding.groupMembersCount.setText(getString(R.string.group_members_detail, userList.size()));
-                shortcutAdapter.setMemberList(userList);
-            }
-        });
+        refreshGroupMembers();
+        // 社群频道：隐藏「退出群聊」（退出社群=退社群+删聊天，在社群管理页操作）+ 隐藏二维码相关
+        try {
+            ZIMKitCore.getInstance().zim().queryGroupAllAttributes(mId, (g, attrs, e) -> {
+                if (attrs != null && "community".equals(attrs.get("bizType"))) {
+                    runOnUiThread(() -> {
+                        View exitBtn = binding.getRoot().findViewById(R.id.exit_group_btn);
+                        if (exitBtn != null) {
+                            exitBtn.setVisibility(View.GONE);
+                        }
+                        View qrRow = binding.getRoot().findViewById(R.id.qr_code_container);
+                        if (qrRow != null) {
+                            qrRow.setVisibility(View.GONE);
+                        }
+                        View qrRow2 = binding.getRoot().findViewById(R.id.group_qr_code);
+                        if (qrRow2 != null) {
+                            qrRow2.setVisibility(View.GONE);
+                        }
+                        // 社群频道：隐藏群ID + 复制按钮
+                        View infoLayout = binding.getRoot().findViewById(R.id.group_info_layout);
+                        if (infoLayout != null) {
+                            infoLayout.setVisibility(View.GONE);
+                        }
+                        // 社群频道：隐藏邀请(ADD) 与 踢出(KICK) 快捷项（成员宫格仍保留）
+                        shortcutAdapter.setShowInvite(false);
+                        shortcutAdapter.setShowKick(false);
+                        refreshGroupMembers();
+                        // 社群频道：隐藏「群聊名称」（名称由社群资料管理页维护，频道只读跟随）
+                        View nameRow = binding.getRoot().findViewById(R.id.group_name_row);
+                        if (nameRow != null) {
+                            nameRow.setVisibility(View.GONE);
+                        }
+                        View divider1 = binding.getRoot().findViewById(R.id.chat_setting_divider1);
+                        if (divider1 != null) {
+                            divider1.setVisibility(View.GONE);
+                        }
+                    });
+                }
+            });
+        } catch (Exception ignored) {
+        }
         binding.groupChatMembersRecyclerview.setAdapter(shortcutAdapter);
         binding.groupChatMembersRecyclerview.setLayoutManager(new GridLayoutManager(this, 5));
         binding.groupChatMembersRecyclerview.addOnItemTouchListener(
@@ -167,47 +220,25 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
                     int position = vh.getAdapterPosition();
                     if (position != RecyclerView.NO_POSITION) {
                         ZIMKitGroupMemberInfo groupMember = shortcutAdapter.getItemData(position);
-                        if (groupMember.getId() == null) {
-                            AlertDialog.Builder builder = new Builder(ZIMKitGroupChatSettingActivity.this);
-                            ViewGroup viewGroup = (ViewGroup) View.inflate(ZIMKitGroupChatSettingActivity.this,
-                                R.layout.zimkit_dialog_confirm_content, null);
-                            TextView title = viewGroup.findViewById(R.id.title);
-                            title.setText(R.string.zimkit_add_group_member);
-                            EditText inputLayout = viewGroup.findViewById(R.id.content_edit_text);
-                            viewGroup.findViewById(R.id.content_text_view).setVisibility(View.GONE);
-                            inputLayout.setHint(R.string.zimkit_input_member_id);
-                            builder.setView(viewGroup);
-                            AlertDialog dialog = builder.create();
-                            viewGroup.findViewById(R.id.confirm).setOnClickListener(v -> {
-                                String userID = inputLayout.getText().toString();
-                                if (TextUtils.isEmpty(userID)) {
-                                    inputLayout.setError(getString(R.string.zimkit_input_member_id));
-                                    return;
-                                }
-                                ZIMKit.inviteUsersToJoinGroup(Collections.singletonList(userID), mId,
-                                    new InviteUsersToJoinGroupCallback() {
-                                        @Override
-                                        public void onInviteUsersToJoinGroup(
-                                            ArrayList<ZIMKitGroupMemberInfo> groupMembers,
-                                            ArrayList<ZIMErrorUserInfo> inviteUserErrors, ZIMError error) {
-                                            if (error.code != ZIMErrorCode.SUCCESS) {
-                                                ZIMKitToastUtils.showToast(error.message);
-                                            }
-                                            dialog.dismiss();
-                                        }
-                                    });
-                            });
-                            viewGroup.findViewById(R.id.cancel).setOnClickListener(v -> {
-                                dialog.dismiss();
-                            });
-                            dialog.show();
-                            Window window = dialog.getWindow();
-                            window.setBackgroundDrawableResource(R.drawable.zimkit_shape_12dp_white);
-                            WindowManager.LayoutParams lp = window.getAttributes();
-                            DisplayMetrics displayMetrics = getResources().getDisplayMetrics();
-                            lp.width = dp2px(270, displayMetrics);
-                            lp.height = dp2px(165, displayMetrics);
-                            window.setAttributes(lp);
+                        if (groupMember == GroupMemberShortcutAdapter.ADD) {
+                            if (com.zegocloud.zimkit.services.internal.GroupSettingBridge.getListener() != null) {
+                                com.zegocloud.zimkit.services.internal.GroupSettingBridge.getListener().onInvite(mId);
+                            }
+                            return;
+                        }
+                        if (groupMember == GroupMemberShortcutAdapter.KICK) {
+                            if (com.zegocloud.zimkit.services.internal.GroupSettingBridge.getListener() != null) {
+                                com.zegocloud.zimkit.services.internal.GroupSettingBridge.getListener().onKick(mId);
+                            }
+                            return;
+                        }
+                        // 点击普通成员 → 打开成员信息页（图3/图4：群主看用户 / 用户看群主）
+                        if (groupMember != null && groupMember.getId() != null) {
+                            if (com.zegocloud.zimkit.services.internal.GroupSettingBridge.getListener() != null) {
+                                com.zegocloud.zimkit.services.internal.GroupSettingBridge.getListener()
+                                    .onMemberClick(mId, groupMember.getId());
+                            }
+                            return;
                         }
                     }
                 }
@@ -218,8 +249,66 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
             intent.putExtra(ZIMKitConstant.MessagePageConstant.KEY_ID, mId);
             startActivity(intent);
         });
+        // 群聊名称修改（ZIM updateGroupName，列表/聊天头同步）
+        View groupNameRow = binding.getRoot().findViewById(R.id.group_name_row);
+        if (groupNameRow != null) {
+            groupNameRow.setOnClickListener(v -> {
+                TextView nameValue = findViewById(R.id.group_name_value);
+                String currentName = nameValue != null ? String.valueOf(nameValue.getText()) : "群聊";
+                android.widget.EditText input = new android.widget.EditText(ZIMKitGroupChatSettingActivity.this);
+                input.setText(currentName == null ? "" : currentName);
+                input.setHint("请输入群聊名称");
+                new AlertDialog.Builder(ZIMKitGroupChatSettingActivity.this)
+                    .setTitle("修改群聊名称")
+                    .setView(input)
+                    .setPositiveButton("确定", (d, w) -> {
+                        String nn = input.getText().toString().trim();
+                        if (nn.isEmpty()) {
+                            return;
+                        }
+                        ZIMKitCore.getInstance().zim().updateGroupName(mId, nn, (gid, newName, err) -> {
+                            if (err != null && err.code == ZIMErrorCode.SUCCESS) {
+                                TextView groupNameValue = findViewById(R.id.group_name_value);
+                                if (groupNameValue != null) {
+                                    groupNameValue.setText(newName);
+                                }
+                                binding.groupSetTitleBar.setTitle(newName);
+                            } else {
+                                com.zegocloud.zimkit.common.utils.ZIMKitToastUtils.showToast(
+                                    err == null ? "修改失败" : err.message);
+                            }
+                        });
+                    })
+                    .setNegativeButton("取消", null)
+                    .show();
+            });
+        }
+
+        // 退出群聊：群主 → 转让（管理员→最早加入→随机）再退出；普通成员直接退出
+        View exitGroupBtn = binding.getRoot().findViewById(R.id.exit_group_btn);
+        if (exitGroupBtn != null) {
+            exitGroupBtn.setOnClickListener(v -> {
+                new AlertDialog.Builder(ZIMKitGroupChatSettingActivity.this)
+                    .setTitle("退出群聊")
+                    .setMessage("确定退出该群聊？群主退出后群主将交给管理员（入群最早者优先）")
+                    .setPositiveButton("确定", (d, w) -> {
+                        if (com.zegocloud.zimkit.services.internal.GroupSettingBridge.getListener() != null) {
+                            com.zegocloud.zimkit.services.internal.GroupSettingBridge.getListener().onExit(mId);
+                        }
+                    })
+                    .setNegativeButton("取消", null)
+                    .show();
+            });
+        }
+
         ZIMKitConversation conversation = ZIMKitCore.getInstance().getZIMKitConversation(mId);
         if (conversation != null) {
+            binding.pinChat.setVisibility(View.VISIBLE);
+            binding.doNotDisturb.setVisibility(View.VISIBLE);
+            View divider2 = binding.getRoot().findViewById(R.id.chat_setting_divider2);
+            if (divider2 != null) {
+                divider2.setVisibility(View.VISIBLE);
+            }
             binding.pinChat.realSetChecked(conversation.getZimConversation().isPinned);
             binding.pinChat.setAsynchronous(new Asynchronous() {
                 @Override
@@ -275,9 +364,7 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
             @Override
             public void onGroupMemberStateChanged(ZIMGroupMemberState state, ZIMGroupMemberEvent event,
                 ArrayList<ZIMGroupMemberInfo> userList, ZIMGroupOperatedInfo operatedInfo, String groupID) {
-                List<ZIMKitGroupMemberInfo> groupMemberList = ZIMKitCore.getInstance().getGroupMemberList(mId);
-                binding.groupMembersCount.setText(getString(R.string.group_members_detail, groupMemberList.size()));
-                shortcutAdapter.setMemberList(groupMemberList);
+                refreshGroupMembers();
             }
         };
         ZIMKit.registerZIMKitDelegate(zimKitDelegate);
@@ -287,6 +374,31 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
     protected void onDestroy() {
         super.onDestroy();
         ZIMKit.unRegisterZIMKitDelegate(zimKitDelegate);
+        if (sInstance == this) {
+            sInstance = null;
+        }
+    }
+
+    /** 成员列表实时刷新（退群/拉人后立即更新，避免残留） */
+    private void refreshGroupMembers() {
+        try {
+            ZIMGroupMemberQueryConfig config = new ZIMGroupMemberQueryConfig();
+            config.count = 100;
+            ZIMKitCore.getInstance().queryGroupMemberList(mId, config, new QueryGroupMemberListCallback() {
+                @Override
+                public void onGroupMemberListQueried(String groupID, ArrayList<ZIMKitGroupMemberInfo> userList,
+                    int nextFlag, ZIMError errorInfo) {
+                    if (userList != null) {
+                        runOnUiThread(() -> {
+                            binding.groupMembersCount.setText(
+                                getString(R.string.group_members_detail, userList.size()));
+                            shortcutAdapter.setMemberList(userList);
+                        });
+                    }
+                }
+            });
+        } catch (Exception ignored) {
+        }
     }
 
     public static int dp2px(float v, DisplayMetrics displayMetrics) {

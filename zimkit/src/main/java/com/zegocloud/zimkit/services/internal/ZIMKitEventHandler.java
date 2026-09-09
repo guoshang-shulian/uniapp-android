@@ -34,6 +34,46 @@ public class ZIMKitEventHandler extends ZIMEventHandler {
 
     private static CallCallback mListener;
 
+    /** 会话变化实时同步回调（TestModule 注册 → 秒级推送到 uniapp） */
+    public interface ConversationChangeCallback {
+        void onConversationEvent();
+    }
+
+    private static ConversationChangeCallback mConvListener;
+
+    public static void setConversationChangeCallback(ConversationChangeCallback listener) {
+        mConvListener = listener;
+    }
+
+    private static void notifyConversationChange() {
+        if (mConvListener != null) {
+            try {
+                mConvListener.onConversationEvent();
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    /** 群申请列表变化实时同步回调（TestModule 注册 → 秒级角标/审核列表） */
+    public interface GroupApplicationCallback {
+        void onGroupApplicationEvent();
+    }
+
+    private static GroupApplicationCallback mAppListener;
+
+    public static void setGroupApplicationCallback(GroupApplicationCallback listener) {
+        mAppListener = listener;
+    }
+
+    private static void notifyGroupApplicationEvent() {
+        if (mAppListener != null) {
+            try {
+                mAppListener.onGroupApplicationEvent();
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
     private  String groupId;
 
     public static void setOnNativeDataListener(CallCallback listener) {
@@ -56,6 +96,21 @@ public class ZIMKitEventHandler extends ZIMEventHandler {
     }
 
     @Override
+    public void onGroupApplicationListChanged(ZIM zim,
+        ArrayList<im.zego.zim.entity.ZIMGroupApplicationInfo> applicationInfoList,
+        im.zego.zim.enums.ZIMGroupApplicationListChangeAction action) {
+        super.onGroupApplicationListChanged(zim, applicationInfoList, action);
+        notifyGroupApplicationEvent();
+    }
+
+    @Override
+    public void onGroupApplicationUpdated(ZIM zim,
+        ArrayList<im.zego.zim.entity.ZIMGroupApplicationInfo> applicationInfoList) {
+        super.onGroupApplicationUpdated(zim, applicationInfoList);
+        notifyGroupApplicationEvent();
+    }
+
+    @Override
     public void onConversationChanged(ZIM zim, ArrayList<ZIMConversationChangeInfo> conversationChangeInfoList) {
         super.onConversationChanged(zim, conversationChangeInfoList);
         handlerConversationChange(conversationChangeInfoList);
@@ -68,6 +123,7 @@ public class ZIMKitEventHandler extends ZIMEventHandler {
         ZIMKitCore.getInstance().getZimkitNotifyList().notifyAllListener(zimKitDelegate -> {
             zimKitDelegate.onTotalUnreadMessageCountChange(totalUnreadMessageCount);
         });
+        notifyConversationChange();
     }
 
     @Override
@@ -231,6 +287,7 @@ public class ZIMKitEventHandler extends ZIMEventHandler {
             zimKitDelegate.onConversationListChanged(conversations);
          //   zimKitDelegate.newChange();
         });
+        notifyConversationChange();
     }
 
     private void handleReceiveNewMessages(ArrayList<ZIMMessage> messageList) {

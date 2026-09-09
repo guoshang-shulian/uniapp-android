@@ -34,7 +34,7 @@ public class MemberPickerActivity extends android.app.Activity {
     private MemberPickerAdapter adapter;
     private List<Member> currentList;
     private TextView confirmBtn;
-    private TextView emptyView;
+    private View emptyView;
     private TextView pickCount;
     private ProgressBar progressBar;
     private EditText searchInput;
@@ -52,12 +52,17 @@ public class MemberPickerActivity extends android.app.Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         try {
-            setContentView(R.layout.activity_member_picker);
+            com.zegocloud.zimkit.common.utils.ZimkitStatusBar.setWhite(this);
+            setContentView(MpRes.layout(this, "activity_member_picker"));
             options = MemberPickerOptions.fromJson(getIntent().getStringExtra("optionsJson"));
             if (options == null) {
                 deliverCancelAndFinish("options null");
                 return;
             }
+            android.util.Log.d("MemberPicker", "ids mpkTitle=" + MpRes.id(this, "mpkTitle")
+                + " mpkConfirm=" + MpRes.id(this, "mpkConfirm")
+                + " mpkList=" + MpRes.id(this, "mpkList")
+                + " mpkIndex=" + MpRes.id(this, "mpkIndex"));
             initViews();
             android.util.Log.d("MemberPicker", "onCreate ok dataSource=" + options.dataSource
                 + " title=" + options.title + " grouping=" + options.grouping);
@@ -80,17 +85,17 @@ public class MemberPickerActivity extends android.app.Activity {
             return;
         }
 
-        TextView title = findViewById(R.id.mpkTitle);
+        TextView title = findViewById(MpRes.id(this, "mpkTitle"));
         title.setText(options.title == null || options.title.isEmpty() ? "选择成员" : options.title);
 
-        confirmBtn = findViewById(R.id.mpkConfirm);
-        emptyView = findViewById(R.id.mpkEmpty);
-        progressBar = findViewById(R.id.mpkProgress);
-        searchInput = findViewById(R.id.mpkSearch);
-        pickCount = findViewById(R.id.mpkPickCount);
-        indexBar = findViewById(R.id.mpkIndex);
+        confirmBtn = findViewById(MpRes.id(this, "mpkConfirm"));
+        emptyView = findViewById(MpRes.id(this, "mpkEmpty"));
+        progressBar = findViewById(MpRes.id(this, "mpkProgress"));
+        searchInput = findViewById(MpRes.id(this, "mpkSearch"));
+        pickCount = findViewById(MpRes.id(this, "mpkPickCount"));
+        indexBar = findViewById(MpRes.id(this, "mpkIndex"));
 
-        findViewById(R.id.mpkBack).setOnClickListener(v -> cancelAndFinish());
+        findViewById(MpRes.id(this, "mpkBack")).setOnClickListener(v -> cancelAndFinish());
         confirmBtn.setOnClickListener(v -> confirmAndFinish());
         // 已选数 → 点击清空（保留“已在群中”必选）
         pickCount.setOnClickListener(v -> {
@@ -102,7 +107,7 @@ public class MemberPickerActivity extends android.app.Activity {
         currentList = dataSource.getCache();
 
         adapter = new MemberPickerAdapter(options.isMulti(), options.isReadOnly(), options.grouping,
-            true, new MemberPickerAdapter.Callback() {
+            !("KICK".equals(options.action) || "MUTE".equals(options.action)), new MemberPickerAdapter.Callback() {
             @Override
             public void onItemClick(Member member) {
                 deliverSuccess(member);
@@ -115,7 +120,7 @@ public class MemberPickerActivity extends android.app.Activity {
             }
         });
 
-        RecyclerView list = findViewById(R.id.mpkList);
+        RecyclerView list = findViewById(MpRes.id(this, "mpkList"));
         list.setLayoutManager(new LinearLayoutManager(this));
         list.setAdapter(adapter);
         list.addOnScrollListener(new RecyclerView.OnScrollListener() {
@@ -172,8 +177,6 @@ public class MemberPickerActivity extends android.app.Activity {
     private void buildIndexBar() {
         indexBar.removeAllViews();
         String letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#";
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
         for (int i = 0; i < letters.length(); i++) {
             final String letter = String.valueOf(letters.charAt(i));
             TextView tv = new TextView(this);
@@ -186,8 +189,6 @@ public class MemberPickerActivity extends android.app.Activity {
             tv.setOnClickListener(v -> jumpToInitial(letter));
             indexBar.addView(tv);
         }
-        lp.weight = 1;
-        indexBar.setLayoutParams(lp);
     }
 
     private void jumpToInitial(String letter) {
@@ -195,7 +196,7 @@ public class MemberPickerActivity extends android.app.Activity {
         if (pos < 0) {
             return;
         }
-        RecyclerView list = findViewById(R.id.mpkList);
+        RecyclerView list = findViewById(MpRes.id(this, "mpkList"));
         LinearLayoutManager lm = (LinearLayoutManager) list.getLayoutManager();
         if (lm != null) {
             lm.scrollToPositionWithOffset(pos, 0);

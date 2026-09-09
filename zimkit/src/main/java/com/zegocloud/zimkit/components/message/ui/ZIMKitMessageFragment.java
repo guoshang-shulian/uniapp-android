@@ -457,6 +457,7 @@ public class ZIMKitMessageFragment extends BaseFragment<ZimkitFragmentMessageBin
         });
 
         initInputView();
+        refreshMuteState();
 
         mBinding.multiSelectDelete.setOnClickListener(view -> {
             //Multiple choice deletion
@@ -657,6 +658,48 @@ public class ZIMKitMessageFragment extends BaseFragment<ZimkitFragmentMessageBin
             }
 
         });
+    }
+
+    /** 禁言态刷新（个体 muteExpiredTime；进入页面/onResume 自动恢复） */
+    private void refreshMuteState() {
+        try {
+            if (conversationType != im.zego.zim.enums.ZIMConversationType.GROUP) {
+                return;
+            }
+            String self = ZIMKitCore.getInstance().getLocalUser() == null
+                ? null : ZIMKitCore.getInstance().getLocalUser().getId();
+            if (self == null || conversationID == null) {
+                return;
+            }
+            im.zego.zim.entity.ZIMGroupMemberQueryConfig config =
+                new im.zego.zim.entity.ZIMGroupMemberQueryConfig();
+            config.count = 100;
+            config.nextFlag = 0;
+            ZIMKitCore.getInstance().zim().queryGroupMemberList(conversationID, config,
+                (gid, memberList, flag, errorInfo) -> {
+                    if (errorInfo != null && errorInfo.code == im.zego.zim.enums.ZIMErrorCode.SUCCESS
+                        && memberList != null) {
+                        boolean muted = false;
+                        for (im.zego.zim.entity.ZIMGroupMemberInfo info : memberList) {
+                            if (info != null && self.equals(info.userID)) {
+                                muted = info.muteExpiredTime > System.currentTimeMillis();
+                                break;
+                            }
+                        }
+                        final boolean mm = muted;
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> mBinding.inputViewLayout.setMutedState(mm));
+                        }
+                    }
+                });
+        } catch (Exception ignored) {
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        refreshMuteState();
     }
 
     private void pickFileToSend() {

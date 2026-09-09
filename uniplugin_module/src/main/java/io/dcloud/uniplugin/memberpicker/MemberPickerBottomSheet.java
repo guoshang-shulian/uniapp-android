@@ -30,25 +30,41 @@ public class MemberPickerBottomSheet {
     }
 
     public static void show(final Activity activity, final MemberPickerOptions options, final ResultListener listener) {
-        final Dialog dialog = new Dialog(activity, R.style.BottomSheetDialogTheme);
-        dialog.setContentView(R.layout.dialog_member_picker);
+        final Dialog dialog = new Dialog(activity, MpRes.style(activity, "BottomSheetDialogTheme"));
+        dialog.setContentView(MpRes.layout(activity, "dialog_member_picker"));
         Window window = dialog.getWindow();
         if (window != null) {
-            int height = (int) (activity.getResources().getDisplayMetrics().heightPixels * 0.7f);
-            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, height);
+            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
             window.setGravity(Gravity.BOTTOM);
             window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.setDimAmount(0.4f);
+        }
+        // 面板固定 2/3 屏（窗口全屏，遮罩/liquid 覆盖到底部）
+        View panel = dialog.findViewById(MpRes.id(activity, "mpSheetPanel"));
+        if (panel != null) {
+            int height = (int) (activity.getResources().getDisplayMetrics().heightPixels * 2f / 3f);
+            ViewGroup.LayoutParams lp = panel.getLayoutParams();
+            lp.height = height;
+            panel.setLayoutParams(lp);
+        }
+        View mask = dialog.findViewById(MpRes.id(activity, "mpSheetMask"));
+        if (mask != null) {
+            mask.setOnClickListener(v -> {
+                listener.onResult(false, true, new ArrayList<Member>());
+                dialog.dismiss();
+            });
         }
 
-        TextView title = dialog.findViewById(R.id.mpSheetTitle);
+        TextView title = dialog.findViewById(MpRes.id(activity, "mpSheetTitle"));
         title.setText(options.title == null || options.title.isEmpty() ? "选择成员" : options.title);
-        EditText search = dialog.findViewById(R.id.mpSheetSearch);
-        final TextView confirm = dialog.findViewById(R.id.mpSheetConfirm);
+        EditText search = dialog.findViewById(MpRes.id(activity, "mpSheetSearch"));
+        final TextView confirm = dialog.findViewById(MpRes.id(activity, "mpSheetConfirm"));
 
         MemberPickerDataSource dataSource = MemberPickerDataSource.create(options);
         final List<Member> current = new ArrayList<>();
         final MemberPickerAdapter adapter = new MemberPickerAdapter(options.isMulti(), options.isReadOnly(),
-            options.grouping, true, new MemberPickerAdapter.Callback() {
+            options.grouping, !("KICK".equals(options.action) || "MUTE".equals(options.action)),
+            new MemberPickerAdapter.Callback() {
             @Override
             public void onItemClick(Member member) {
                 List<Member> result = new ArrayList<>();
@@ -60,12 +76,15 @@ public class MemberPickerBottomSheet {
             @Override
             public void onSelectionChanged(List<Member> selected) {
                 if (options.isMulti() && !options.isReadOnly()) {
-                    confirm.setText(selected == null || selected.isEmpty() ? "确定" : "确定 (" + selected.size() + ")");
+                    String label = options.confirmText == null || options.confirmText.isEmpty()
+                        ? "确定" : options.confirmText;
+                    confirm.setText(selected == null || selected.isEmpty()
+                        ? label : label + " (" + selected.size() + ")");
                 }
             }
         });
 
-        RecyclerView list = dialog.findViewById(R.id.mpSheetList);
+        RecyclerView list = dialog.findViewById(MpRes.id(activity, "mpSheetList"));
         list.setLayoutManager(new LinearLayoutManager(activity));
         list.setAdapter(adapter);
         list.addOnScrollListener(new RecyclerView.OnScrollListener() {
@@ -90,14 +109,16 @@ public class MemberPickerBottomSheet {
 
         if (options.isMulti() && !options.isReadOnly()) {
             confirm.setVisibility(View.VISIBLE);
+            confirm.setText(options.confirmText == null || options.confirmText.isEmpty()
+                ? "确定" : options.confirmText);
             adapter.setSelectedIds(new java.util.LinkedHashSet<>(options.defaultSelectedIds));
         }
 
-        dialog.findViewById(R.id.mpSheetClose).setOnClickListener(v -> {
+        dialog.findViewById(MpRes.id(activity, "mpSheetClose")).setOnClickListener(v -> {
             listener.onResult(false, true, new ArrayList<Member>());
             dialog.dismiss();
         });
-        dialog.findViewById(R.id.mpSheetCancel).setOnClickListener(v -> {
+        dialog.findViewById(MpRes.id(activity, "mpSheetCancel")).setOnClickListener(v -> {
             listener.onResult(false, true, new ArrayList<Member>());
             dialog.dismiss();
         });

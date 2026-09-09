@@ -185,11 +185,11 @@ public class MemberPickerAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
     public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         if (viewType == TYPE_HEADER) {
             View v = LayoutInflater.from(parent.getContext())
-                .inflate(R.layout.item_member_picker_header, parent, false);
+                .inflate(MpRes.layout(parent.getContext(), "item_member_picker_header"), parent, false);
             return new HeaderVH(v);
         }
         View v = LayoutInflater.from(parent.getContext())
-            .inflate(R.layout.item_member_picker, parent, false);
+            .inflate(MpRes.layout(parent.getContext(), "item_member_picker"), parent, false);
         return new VH(v);
     }
 
@@ -230,7 +230,7 @@ public class MemberPickerAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
         if (!readOnly) {
             h.checkbox.setVisibility(View.VISIBLE);
             h.checkbox.setImageResource(selectedIds.contains(m.memberId)
-                ? R.drawable.ic_mp_checked : R.drawable.ic_mp_unchecked);
+                ? MpRes.drawable(h.itemView.getContext(), "ic_mp_checked") : MpRes.drawable(h.itemView.getContext(), "ic_mp_unchecked"));
             h.checkbox.setAlpha(m.disabled ? 0.45f : 1f);
         } else {
             h.checkbox.setVisibility(View.GONE);
@@ -279,7 +279,7 @@ public class MemberPickerAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
 
         HeaderVH(@NonNull View itemView) {
             super(itemView);
-            text = itemView.findViewById(R.id.mpHeader);
+            text = itemView.findViewById(MpRes.id(itemView.getContext(), "mpHeader"));
         }
     }
 
@@ -293,12 +293,12 @@ public class MemberPickerAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
 
         VH(@NonNull View itemView) {
             super(itemView);
-            avatar = itemView.findViewById(R.id.mpAvatar);
-            name = itemView.findViewById(R.id.mpName);
-            remark = itemView.findViewById(R.id.mpRemark);
-            role = itemView.findViewById(R.id.mpRole);
-            disabled = itemView.findViewById(R.id.mpDisabled);
-            checkbox = itemView.findViewById(R.id.mpCheckbox);
+            avatar = itemView.findViewById(MpRes.id(itemView.getContext(), "mpAvatar"));
+            name = itemView.findViewById(MpRes.id(itemView.getContext(), "mpName"));
+            remark = itemView.findViewById(MpRes.id(itemView.getContext(), "mpRemark"));
+            role = itemView.findViewById(MpRes.id(itemView.getContext(), "mpRole"));
+            disabled = itemView.findViewById(MpRes.id(itemView.getContext(), "mpDisabled"));
+            checkbox = itemView.findViewById(MpRes.id(itemView.getContext(), "mpCheckbox"));
         }
     }
 }

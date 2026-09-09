@@ -36,6 +36,7 @@ public class ZIMKitPrivateChatSettingActivity extends ComponentActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        com.zegocloud.zimkit.common.utils.ZimkitStatusBar.setWhite(this);
         binding = DataBindingUtil.setContentView(this, R.layout.activity_private_chat_setting);
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());

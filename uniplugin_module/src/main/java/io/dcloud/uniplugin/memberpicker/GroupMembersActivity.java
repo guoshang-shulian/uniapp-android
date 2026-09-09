@@ -56,18 +56,18 @@ public class GroupMembersActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_group_members);
+        setContentView(MpRes.layout(this, "activity_group_members_grid"));
 
         groupId = getIntent().getStringExtra("groupId");
         if (groupId == null) groupId = "";
         isAdmin = getIntent().getBooleanExtra("isAdmin", false);
         String title = getIntent().getStringExtra("title");
-        TextView titleView = findViewById(R.id.gmTitle);
+        TextView titleView = findViewById(MpRes.id(this, "gmTitle"));
         titleView.setText(title == null || title.isEmpty() ? "群成员" : title);
 
-        findViewById(R.id.gmBack).setOnClickListener(v -> finish());
-        progressBar = findViewById(R.id.gmProgress);
-        emptyView = findViewById(R.id.gmEmpty);
+        findViewById(MpRes.id(this, "gmBack")).setOnClickListener(v -> finish());
+        progressBar = findViewById(MpRes.id(this, "gmProgress"));
+        emptyView = findViewById(MpRes.id(this, "gmEmpty"));
 
         adapter = new GroupMembersAdapter(isAdmin, new GroupMembersAdapter.Callback() {
             @Override
@@ -87,7 +87,7 @@ public class GroupMembersActivity extends Activity {
             }
         });
 
-        RecyclerView list = findViewById(R.id.gmList);
+        RecyclerView list = findViewById(MpRes.id(this, "gmList"));
         list.setLayoutManager(new GridLayoutManager(this, 5));
         list.setAdapter(adapter);
 

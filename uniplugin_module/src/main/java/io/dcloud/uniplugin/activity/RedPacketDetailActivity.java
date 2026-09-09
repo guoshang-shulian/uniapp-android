@@ -44,6 +44,7 @@ public class RedPacketDetailActivity extends android.app.Activity {
     private String senderUserId = "";
     private String senderName = "";
     private String senderAvatar = "";
+    private String conversationType = "group";
 
     private ImageView topBg;
     private TextView drawBtn;
@@ -58,10 +59,11 @@ public class RedPacketDetailActivity extends android.app.Activity {
     private JSONObject detail;
 
     public static void start(Context context, String redPacketId, String conversationId,
-        String senderUserId, String senderName, String senderAvatar) {
+        String conversationType, String senderUserId, String senderName, String senderAvatar) {
         Intent intent = new Intent(context, RedPacketDetailActivity.class);
         intent.putExtra("redPacketId", redPacketId == null ? "" : redPacketId);
         intent.putExtra("conversationId", conversationId == null ? "" : conversationId);
+        intent.putExtra("conversationType", conversationType == null ? "" : conversationType);
         intent.putExtra("senderUserId", senderUserId == null ? "" : senderUserId);
         intent.putExtra("senderName", senderName == null ? "" : senderName);
         intent.putExtra("senderAvatar", senderAvatar == null ? "" : senderAvatar);
@@ -73,14 +75,25 @@ public class RedPacketDetailActivity extends android.app.Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_red_packet_detail);
+        // 状态栏与页面同灰（#EDEDED + 深色图标）
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                getWindow().setStatusBarColor(android.graphics.Color.parseColor("#EDEDED"));
+                getWindow().getDecorView().setSystemUiVisibility(
+                    android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+            }
+        } catch (Exception ignored) {
+        }
 
         redPacketId = getIntent().getStringExtra("redPacketId");
         conversationId = getIntent().getStringExtra("conversationId");
+        conversationType = getIntent().getStringExtra("conversationType");
         senderUserId = getIntent().getStringExtra("senderUserId");
         senderName = getIntent().getStringExtra("senderName");
         senderAvatar = getIntent().getStringExtra("senderAvatar");
         if (redPacketId == null) redPacketId = "";
         if (conversationId == null) conversationId = "";
+        if (conversationType == null || conversationType.isEmpty()) conversationType = "group";
         if (senderName == null || senderName.isEmpty()) senderName = "朋友";
 
         bindViews();
@@ -212,8 +225,11 @@ public class RedPacketDetailActivity extends android.app.Activity {
             && !TextUtils.isEmpty(detail.getString("toUserId"))
             && !detail.getString("toUserId").equals(TestModule.getLocalUserId());
 
+        // 发送者本人不能领取自己的红包（仅可查看）
+        boolean isSender = senderUserId != null && senderUserId.equals(TestModule.getLocalUserId());
+
         boolean canDraw = !("ended".equals(status) || "expired".equals(status) || "refunded".equals(status))
-            && myPoints <= 0 && !exclusiveToOther;
+            && myPoints <= 0 && !exclusiveToOther && !isSender;
         if (canDraw) {
             drawBtn.setVisibility(View.VISIBLE);
             drawBtn.setText("开");
@@ -228,6 +244,8 @@ public class RedPacketDetailActivity extends android.app.Activity {
                 statusText.setText("已领取");
             } else if (exclusiveToOther) {
                 statusText.setText("这是别人的专属红包");
+            } else if (isSender) {
+                statusText.setText("等待领取");
             }
         }
 
@@ -392,6 +410,12 @@ public class RedPacketDetailActivity extends android.app.Activity {
     }
 
     private void onDrawn(JSONObject result) {
+        // 幂等：已领过 → 重新拉详情
+        if (Boolean.TRUE.equals(result.getBoolean("alreadyDrawn"))) {
+            toast("已领取过该红包");
+            loadDetail();
+            return;
+        }
         double points = result.getDoubleValue("points");
         detail.put("myDrawPoints", points);
         int oldDraw = detail.getIntValue("drawCount");
@@ -409,7 +433,7 @@ public class RedPacketDetailActivity extends android.app.Activity {
         JSONObject payload = new JSONObject();
         payload.put("version", 1);
         payload.put("cardType", "red_packet");
-        payload.put("conversationType", "group");
+        payload.put("conversationType", conversationType);
         payload.put("conversationId", conversationId);
         JSONObject sender = new JSONObject();
         sender.put("userId", TestModule.getLocalUserId());

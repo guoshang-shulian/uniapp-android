@@ -84,7 +84,7 @@ public class GroupMembersAdapter extends RecyclerView.Adapter<GroupMembersAdapte
     @Override
     public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         return new VH(LayoutInflater.from(parent.getContext())
-            .inflate(R.layout.item_group_member, parent, false));
+            .inflate(MpRes.layout(parent.getContext(), "item_group_member"), parent, false));
     }
 
     @Override
@@ -104,7 +104,7 @@ public class GroupMembersAdapter extends RecyclerView.Adapter<GroupMembersAdapte
                 }
             });
         } else if (type == TYPE_PLUS) {
-            h.avatar.setImageResource(R.drawable.ic_group_member_plus);
+            h.avatar.setImageResource(MpRes.drawable(h.itemView.getContext(), "ic_group_member_plus"));
             h.name.setText("邀请");
             h.itemView.setOnClickListener(v -> {
                 if (callback != null) {
@@ -112,7 +112,7 @@ public class GroupMembersAdapter extends RecyclerView.Adapter<GroupMembersAdapte
                 }
             });
         } else {
-            h.avatar.setImageResource(R.drawable.ic_group_member_minus);
+            h.avatar.setImageResource(MpRes.drawable(h.itemView.getContext(), "ic_group_member_minus"));
             h.name.setText("移除");
             h.itemView.setOnClickListener(v -> {
                 if (callback != null) {
@@ -133,8 +133,8 @@ public class GroupMembersAdapter extends RecyclerView.Adapter<GroupMembersAdapte
 
         VH(@NonNull View itemView) {
             super(itemView);
-            avatar = itemView.findViewById(R.id.gmAvatar);
-            name = itemView.findViewById(R.id.gmName);
+            avatar = itemView.findViewById(MpRes.id(itemView.getContext(), "gmAvatar"));
+            name = itemView.findViewById(MpRes.id(itemView.getContext(), "gmName"));
         }
     }
 }

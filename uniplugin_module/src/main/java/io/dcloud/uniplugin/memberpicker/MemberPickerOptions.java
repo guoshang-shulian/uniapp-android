@@ -29,6 +29,14 @@ public class MemberPickerOptions {
     public String action = "";
     /** 是否按首字母分组（好友 true；群成员 false） */
     public boolean grouping = false;
+    /** 底部确认按钮文案（多选时显示；默认"确定"） */
+    public String confirmText = "确定";
+    /** 仅显示被禁言的群成员（禁言管理/"解除禁言"场景） */
+    public boolean muteOnly = false;
+    /** 预览模式：使用内置测试数据（张三/李四/王五/赵六/石昊） */
+    public boolean previewMock = false;
+    /** CUSTOM 数据源：外部传入成员列表（如后端禁言列表） */
+    public List<Member> customMembers = new ArrayList<>();
 
     public static MemberPickerOptions fromJson(String json) {
         MemberPickerOptions o = new MemberPickerOptions();
@@ -56,6 +64,26 @@ public class MemberPickerOptions {
             o.grouping = obj.containsKey("grouping")
                 ? obj.getBooleanValue("grouping")
                 : "FRIENDS".equals(o.dataSource);
+            o.confirmText = obj.getString("confirmText") == null ? "确定" : obj.getString("confirmText");
+            o.muteOnly = obj.getBooleanValue("muteOnly");
+            o.previewMock = obj.getBooleanValue("previewMock");
+            JSONArray arr = obj.getJSONArray("customMembers");
+            if (arr != null) {
+                for (int i = 0; i < arr.size(); i++) {
+                    try {
+                        JSONObject m = arr.getJSONObject(i);
+                        Member mm = new Member();
+                        mm.memberId = m.getString("memberId") == null ? "" : m.getString("memberId");
+                        mm.zimUserId = m.getString("zimUserId") == null ? "" : m.getString("zimUserId");
+                        mm.userName = m.getString("userName") == null ? "" : m.getString("userName");
+                        mm.avatarUrl = m.getString("avatarUrl") == null ? "" : m.getString("avatarUrl");
+                        mm.groupRole = m.getString("groupRole") == null ? "" : m.getString("groupRole");
+                        mm.isMuted = m.getBooleanValue("isMuted");
+                        o.customMembers.add(mm);
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
         } catch (Exception ignored) {
         }
         return o;

@@ -27,6 +27,8 @@ import com.zegocloud.zimkit.components.message.utils.CustomDividerItemDecoration
 import com.zegocloud.zimkit.databinding.ActivityGroupMembersBinding;
 import com.zegocloud.zimkit.services.ZIMKit;
 import com.zegocloud.zimkit.services.ZIMKitDelegate;
+import androidx.recyclerview.widget.RecyclerView;
+import com.zegocloud.zimkit.components.message.utils.OnRecyclerViewItemTouchListener;
 import com.zegocloud.zimkit.services.callback.InviteUsersToJoinGroupCallback;
 import com.zegocloud.zimkit.services.internal.ZIMKitCore;
 import im.zego.zim.entity.ZIMError;
@@ -49,8 +51,10 @@ public class ZIMKitGroupMembersActivity extends ComponentActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        com.zegocloud.zimkit.common.utils.ZimkitStatusBar.setWhite(this);
         binding = ActivityGroupMembersBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        binding.add.setVisibility(View.GONE);
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
@@ -108,6 +112,21 @@ public class ZIMKitGroupMembersActivity extends ComponentActivity {
         groupMemberAdapter.setMemberList(groupMemberList);
         binding.recyclerview.setAdapter(groupMemberAdapter);
         binding.recyclerview.setLayoutManager(new LinearLayoutManager(this));
+        binding.recyclerview.addOnItemTouchListener(new OnRecyclerViewItemTouchListener(binding.recyclerview) {
+            @Override
+            public void onItemClick(RecyclerView.ViewHolder vh) {
+                super.onItemClick(vh);
+                int position = vh.getAdapterPosition();
+                if (position != RecyclerView.NO_POSITION) {
+                    ZIMKitGroupMemberInfo member = groupMemberAdapter.getItemData(position);
+                    if (member != null && member.getId() != null
+                        && com.zegocloud.zimkit.services.internal.GroupSettingBridge.getListener() != null) {
+                        com.zegocloud.zimkit.services.internal.GroupSettingBridge.getListener()
+                            .onMemberClick(mID, member.getId());
+                    }
+                }
+            }
+        });
         CustomDividerItemDecoration decoration = new CustomDividerItemDecoration(this,
             CustomDividerItemDecoration.VERTICAL);
         decoration.drawLastChildDivider(false);
