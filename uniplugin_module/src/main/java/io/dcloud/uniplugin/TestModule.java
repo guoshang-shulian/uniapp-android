@@ -1629,9 +1629,18 @@ public class TestModule extends UniModule {
                 eventPayload.put("event", "PEER_LIST_SYNCED");
                 eventPayload.put("data", payload);
 
-                // Push straight downstream over your persistent uni-app JavaScript bridge
-                globalJsCallback.invokeAndKeepAlive(eventPayload);
-                System.out.println("SaaS Engine Sync Event broadcasted to uni-app workspace.");
+                // 再取一次局部引用再调用：globalJsCallback 可能被 stopSyncPipeline 置空，
+                // 直接调用会 NPE（2026-09-10 18:23 实测崩溃：invokeAndKeepAlive on a null object）
+                UniJSCallback cb = globalJsCallback;
+                if (cb == null) {
+                    return;
+                }
+                try {
+                    cb.invokeAndKeepAlive(eventPayload);
+                    System.out.println("SaaS Engine Sync Event broadcasted to uni-app workspace.");
+                } catch (Exception e) {
+                    android.util.Log.w("TestModule", "PEER_LIST_SYNCED invoke fail: " + e);
+                }
             }
         });
     }
@@ -1828,6 +1837,20 @@ public class TestModule extends UniModule {
     /** 请求 uniapp 重新下发 businessToken（原生接口 401/403 时自动触发，刷新后自动重试一次） */
     public static void requestBusinessConfigRefresh() {
         emitGlobalEvent("REFRESH_BUSINESS_TOKEN", new JSONObject());
+    }
+
+    /**
+     * uniapp 侧 token 刷新后主动推送最新 token（反向：不用等原生 403 才刷新）。
+     * 只更新 token 字段，不动 baseUrl/userId/昵称头像，避免并发写坏配置。
+     */
+    @UniJSMethod(uiThread = false)
+    public void notifyBusinessTokenChanged(String token) {
+        String t = token == null ? "" : token;
+        if (t.isEmpty() || t.equals(businessToken)) {
+            return;
+        }
+        businessToken = t;
+        android.util.Log.i("BusinessConfig", "token updated by push, tokenLen=" + t.length());
     }
 
     @UniJSMethod(uiThread = true)
@@ -2487,19 +2510,29 @@ public class TestModule extends UniModule {
 
     /** 打开社群成员资料页（任意原生页面可调用：使用缓存的上下文） */
     public static void openMemberProfile(String groupId, String memberUserId) {
+        openMemberProfileWith(sAppContext, groupId, memberUserId);
+    }
+
+    /**
+     * 打开社群成员资料页。
+     * idOrMemberId：ZIM userId（user_xxx）或裸 memberId 都接受，统一归一化成 ZIM userId —— 避免
+     * 资料页拿裸 memberId 去 ZIM 成员列表里比对不上而提示「成员不存在」。
+     * 调用方直接传上下文最稳（原生 Activity 走这个重载）。
+     */
+    public static void openMemberProfileWith(Context callerContext, String groupId, String idOrMemberId) {
         android.util.Log.i("MemberClick", "openMemberProfile gid=" + groupId
-            + " memberId=" + memberUserId + " ctx=" + (sAppContext != null));
-        if (groupId == null || groupId.isEmpty() || memberUserId == null || memberUserId.isEmpty()) {
-            android.util.Log.w("MemberInfo", "open skipped: groupId=" + groupId + " memberId=" + memberUserId);
+            + " id=" + idOrMemberId + " ctx=" + (callerContext != null));
+        if (groupId == null || groupId.isEmpty() || idOrMemberId == null || idOrMemberId.isEmpty()) {
+            android.util.Log.w("MemberInfo", "open skipped: groupId=" + groupId + " id=" + idOrMemberId);
             return;
         }
         try {
-            Context ctx = sAppContext;
+            Context ctx = callerContext != null ? callerContext : sAppContext;
             if (ctx == null) {
                 android.util.Log.w("MemberInfo", "open failed: context null");
                 return;
             }
-            MemberInfoActivity.start(ctx, groupId, toZimUserId(memberUserId));
+            MemberInfoActivity.start(ctx, groupId, toZimUserId(idOrMemberId));
         } catch (Exception e) {
             android.util.Log.e("MemberInfo", "open member profile fail: " + e.getMessage());
         }
@@ -2541,6 +2574,26 @@ public class TestModule extends UniModule {
 
     /** 安全上下文：优先 uniapp 实例上下文，兜底启动时缓存的 Application/Activity 上下文 */
     private static Context sAppContext;
+
+    /**
+     * 弹窗/原生页专用上下文：必须是**当前在屏幕顶部的 Activity**。
+     * 历史 bug：用 safeContext() 拿到的是 uniapp 的 PandoraEntryActivity（即使当前在 ZIM 原生聊天页），
+     * Dialog 会挂到那个窗口令牌上 → decorAttached=false、看不到，直到回到 uniapp 页才被合成显示。
+     */
+    public static Context dialogContext() {
+        try {
+            Activity top = com.zegocloud.zimkit.common.utils.ZIMKitActivityUtils.getCurrentActivity();
+            if (top != null && !top.isFinishing()) {
+                return top;
+            }
+        } catch (Exception e) {
+            android.util.Log.w("RedPacketOpen", "dialogContext topActivity fail: " + e);
+        }
+        if (sAppContext == null) {
+            android.util.Log.e("RedPacketOpen", "dialogContext: no cached context either");
+        }
+        return sAppContext;
+    }
 
     public static void cacheContext(Context context) {
         if (context != null) {
@@ -3548,13 +3601,16 @@ public class TestModule extends UniModule {
                 }
                 // 红包卡片：打开沉浸式弹窗（可领取/已领取/已被领完/专属 各状态）
                 try {
-                    final android.content.Context rpCtx = safeContext();
+                    final android.content.Context rpCtx = dialogContext();
                     final String fRpId = rpId;
                     final String fConvId = payload.getString("conversationId");
                     final String fConvType = payload.getString("conversationType");
                     final String fSenderId = sender == null ? "" : sender.getString("userId");
                     final String fSenderName = sender == null ? "" : sender.getString("userName");
                     final String fSenderAvatar = sender == null ? "" : sender.getString("avatarUrl");
+                    android.util.Log.i("RedPacketOpen", "dispatch ctx="
+                        + (rpCtx == null ? "null" : rpCtx.getClass().getName())
+                        + " rpId=" + fRpId);
                     new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
                         try {
                             io.dcloud.uniplugin.activity.RedPacketOpenDialog.show(rpCtx, fRpId,

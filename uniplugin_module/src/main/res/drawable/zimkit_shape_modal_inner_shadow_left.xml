@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 弹窗上半区左内阴影（Figma inset 0 0 4 #000000@20% 的左侧近似） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="0"
+        android:endColor="#00000000"
+        android:startColor="#33000000" />
+</shape>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  红包领取记录 顶部红色区（Figma 5339:6846：750×500 → 375×250dp）
+  底边是**大弧度弧线**（不是两边圆角矩形）：中间最低、两侧向上收（×2 系数 22）
+  顶部圆角 24px→12dp；inset 0 0 4 #000@20% 用叠加渐变近似（见 layout 中的两条阴影）
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="375dp"
+    android:height="250dp"
+    android:viewportWidth="375"
+    android:viewportHeight="250">
+    <path
+        android:fillColor="#EE4D2C"
+        android:pathData="M0,12C0,5.373 5.373,0 12,0H363C369.627,0 375,5.373 375,12V228C375,228 300,250 187.5,250C75,250 0,228 0,228Z" />
+</vector>

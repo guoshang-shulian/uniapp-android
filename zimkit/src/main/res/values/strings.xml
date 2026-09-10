@@ -159,6 +159,9 @@
   <string name="zimkit_pin_conversation">置顶</string>
   <string name="zimkit_cancel_pin_conversation">取消置顶</string>
   <string name="zimkit_input_hint">请输入新消息</string>
+  <!-- 禁言提示（个体/全员禁言时替换整个输入区） -->
+  <string name="zimkit_muted_tip">你已被禁言，无法发送消息</string>
+  <string name="zimkit_muted_all_tip">全员禁言中</string>
   <string name="input_audio_press_hint">按住说话</string>
   <string name="input_audio_cancel_hint">松开发送，上滑取消</string>
   <string name="audio_record_cancel_tips">松开取消发送</string>

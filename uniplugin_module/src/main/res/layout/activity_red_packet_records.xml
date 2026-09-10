@@ -1,16 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 红包领取记录（Figma 5339:6845 未领取记录 / 5339:6862 专属红包领取记录） -->
+<!--
+  红包领取记录（Figma 5339:6845 未领取 / 5339:6862 专属记录，750×1624 稿 @2x → dp）
+  · 红顶区 750×500 → 375×250dp：#EE4D2C，顶部圆角 24px→12dp，inset 0 0 4 #000@20%
+  · 状态栏 88px→44dp 在红区之上（沉浸式）→ 图标/时间白色（代码设置 LIGHT 状态栏）
+  · 导航栏 88px→44dp：返回 44×44dp（白色矢量）+ 标题 34px→17sp #FFFFFF 居中
+  · 导航栏底 → 发件人行：60px→30dp；发件人行 232×50 → 头像 44px→22dp r8→4dp + 「XX的红包」36px→18sp #111111
+  · 祝福语 28px→14sp #999999，距发件人行 24px→12dp，居中
+  · 概览文案 28px→14sp #999999，左 24px→12dp，距祝福语 60px→30dp
+  · 分割线 750×1 → 0.5dp #000000@5%，距概览 16px→8dp
+  · 明细行：行高 120px→60dp（见 item_red_packet_record.xml）
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#FAF3F9"
     android:orientation="vertical">
 
-    <!-- 顶部红色区（Figma 750×500 → 375×250dp，顶部圆角 12dp） -->
+    <!-- 顶部红色区：底边大弧度（Figma 5339:6846 矢量），状态栏 44dp + 导航栏 44dp -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="250dp"
-        android:background="@drawable/bg_red_header"
+        android:background="@drawable/bg_red_records_header"
         android:orientation="vertical">
 
         <View
@@ -37,6 +47,7 @@
                 android:layout_height="match_parent"
                 android:layout_weight="1"
                 android:gravity="center"
+                android:includeFontPadding="false"
                 android:text=""
                 android:textColor="#FFFFFF"
                 android:textSize="17sp" />
@@ -47,13 +58,13 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- 内容区：红区下 40dp 起（Figma：发件人行 y 偏移 80px→40dp） -->
+    <!-- 内容区：红区底 → 发件人行 30dp（Figma 60px） -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:orientation="vertical"
-        android:paddingTop="40dp">
+        android:paddingTop="30dp">
 
         <LinearLayout
             android:layout_width="wrap_content"
@@ -73,6 +84,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="6dp"
+                android:includeFontPadding="false"
                 android:text=""
                 android:textColor="#111111"
                 android:textSize="18sp" />
@@ -90,12 +102,74 @@
             android:textColor="#999999"
             android:textSize="14sp" />
 
+        <!-- 已领取状态（Figma 5339:6729）：我的金额 80px→40sp #000000 居中（「积分」28px→14sp） -->
+        <LinearLayout
+            android:id="@+id/rrAmountBlock"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="42dp"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/rrAmountValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:includeFontPadding="false"
+                android:text=""
+                android:textColor="#111111"
+                android:textSize="40sp" />
+
+            <TextView
+                android:id="@+id/rrAmountUnit"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:includeFontPadding="false"
+                android:text="积分"
+                android:textColor="#111111"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <!-- 已存入"我的积分" 28px→14sp #FF913D，点击进我的积分
+             注意：不要用 android:background="?selectableItemBackground" ——
+             MIUI 会把主题强制成 DeviceDefault.Light.DarkActionBar，该属性解析不到会抛
+             UnsupportedOperationException 导致本页 inflate 崩溃（白屏卡死）。
+             水波纹改由代码安全解析（见 RedPacketRecordsActivity.applyRipple）。 -->
+        <LinearLayout
+            android:id="@+id/rrMineRow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="8dp"
+            android:clickable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:includeFontPadding="false"
+                android:text="已存入“我的积分”"
+                android:textColor="#FF913D"
+                android:textSize="14sp" />
+
+            <ImageView
+                android:layout_width="11dp"
+                android:layout_height="13dp"
+                android:layout_marginStart="4dp"
+                android:contentDescription="查看积分"
+                android:src="@drawable/ic_red_packet_arrow_right_gold" />
+        </LinearLayout>
+
         <TextView
             android:id="@+id/rrSummary"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
-            android:layout_marginTop="60dp"
+            android:layout_marginTop="30dp"
             android:layout_marginEnd="12dp"
             android:includeFontPadding="false"
             android:lineSpacingMultiplier="1.4"
@@ -115,10 +189,30 @@
             android:layout_weight="1">
 
             <LinearLayout
-                android:id="@+id/rrList"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical" />
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:id="@+id/rrList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+
+                <!-- 未领完提示（仅当还有未领取份额时显示；24 小时后后端发起退款） -->
+                <TextView
+                    android:id="@+id/rrRefundTip"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="24dp"
+                    android:layout_marginBottom="24dp"
+                    android:gravity="center"
+                    android:includeFontPadding="false"
+                    android:text="未领取的红包，将于24小时后发起退款"
+                    android:textColor="#999999"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
+            </LinearLayout>
         </ScrollView>
     </LinearLayout>
 </LinearLayout>

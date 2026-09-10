@@ -50,6 +50,8 @@ public class RedPacketRecordsActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_red_packet_records);
+        // 沉浸式：红顶区延伸到状态栏之下，状态栏图标/时间用白色（Figma 5339:6845 原样）
+        io.dcloud.uniplugin.otherutils.ImmersiveBar.immersive(this, false);
 
         redPacketId = getIntent().getStringExtra("redPacketId");
         conversationId = getIntent().getStringExtra("conversationId");
@@ -67,9 +69,41 @@ public class RedPacketRecordsActivity extends Activity {
         if (!TextUtils.isEmpty(senderAvatar)) {
             Glide.with(this).load(senderAvatar).circleCrop().into(avatar);
         }
+        // 返回
         findViewById(R.id.rrBack).setOnClickListener(v -> finish());
+        // 点「已存入"我的积分"」→ 我的积分页；水波纹安全设置（不用 ?selectableItemBackground，见布局注释）
+        View mineRow = findViewById(R.id.rrMineRow);
+        applyRipple(mineRow);
+        mineRow.setOnClickListener(v -> openMyPoints());
 
         load();
+    }
+
+    /**
+     * 安全设置点击水波纹：
+     * 布局里不写 ?selectableItemBackground（MIUI 强制主题时解析不到 → inflate 直接崩），
+     * 改为代码 resolveAttribute，失败就退化成浅灰按压色，绝不崩。
+     */
+    private void applyRipple(View view) {
+        if (view == null) {
+            return;
+        }
+        try {
+            android.util.TypedValue out = new android.util.TypedValue();
+            boolean ok = getTheme().resolveAttribute(
+                android.R.attr.selectableItemBackground, out, true);
+            if (ok && out.resourceId != 0) {
+                view.setBackgroundResource(out.resourceId);
+            } else {
+                view.setBackgroundColor(0x14000000);
+            }
+        } catch (Exception e) {
+            android.util.Log.w("RedPacketRecords", "applyRipple fallback: " + e);
+            try {
+                view.setBackgroundColor(0x14000000);
+            } catch (Exception ignored) {
+            }
+        }
     }
 
     private void load() {
@@ -96,9 +130,26 @@ public class RedPacketRecordsActivity extends Activity {
         int drawCount = detail.getIntValue("drawCount");
         String total = trimZero(detail.getDoubleValue("totalPoints"));
         String status = detail.getString("status");
+        double myPoints = detail.getDoubleValue("myDrawPoints");
+        JSONArray drawList = detail.getJSONArray("drawList");
+
+        // 已领取状态（Figma 5339:6729）：大金额 40sp #111 + 「已存入"我的积分"」
+        View amountBlock = findViewById(R.id.rrAmountBlock);
+        View mineRow = findViewById(R.id.rrMineRow);
+        if (myPoints > 0) {
+            ((TextView) findViewById(R.id.rrAmountValue)).setText(trimZero(myPoints));
+            amountBlock.setVisibility(View.VISIBLE);
+            mineRow.setVisibility(View.VISIBLE);
+        } else {
+            amountBlock.setVisibility(View.GONE);
+            mineRow.setVisibility(View.GONE);
+        }
+
+        // 概览文案：抢光时补「，N秒被抢光」（Figma 5339:6739）
+        boolean ended = "ended".equals(status) || (count > 0 && drawCount >= count);
         String summary;
-        if ("ended".equals(status) || (count > 0 && drawCount >= count)) {
-            summary = count + "个红包共" + total + "积分，已被领完";
+        if (ended) {
+            summary = count + "个红包共" + total + "积分" + grabbedSeconds(detail);
         } else if ("expired".equals(status) || "refunded".equals(status)) {
             summary = count + "个红包共" + total + "积分，红包已过期";
         } else if (drawCount > 0) {
@@ -108,9 +159,16 @@ public class RedPacketRecordsActivity extends Activity {
         }
         ((TextView) findViewById(R.id.rrSummary)).setText(summary);
 
+        // 退款提示：还有未领取份额时显示（后端 24 小时后按剩余份额退款）
+        //   · 已领完（ended）→ 无可退，隐藏
+        //   · 已过期/已退款（expired/refunded）→ 退款已发生，隐藏
+        View refundTip = findViewById(R.id.rrRefundTip);
+        boolean expiredStatus = "expired".equals(status) || "refunded".equals(status);
+        boolean hasRemain = count <= 0 || drawCount < count;
+        refundTip.setVisibility(!ended && !expiredStatus && hasRemain ? View.VISIBLE : View.GONE);
+
         LinearLayout list = findViewById(R.id.rrList);
         list.removeAllViews();
-        JSONArray drawList = detail.getJSONArray("drawList");
         if (drawList == null || drawList.isEmpty()) {
             TextView empty = new TextView(this);
             empty.setText("暂无领取记录");
@@ -121,6 +179,16 @@ public class RedPacketRecordsActivity extends Activity {
             list.addView(empty);
             return;
         }
+
+        // 手气最佳：金额最大者（Figma 5339:6755，仅多人时标）
+        double maxPoints = 0;
+        for (int i = 0; i < drawList.size(); i++) {
+            double p = drawList.getJSONObject(i).getDoubleValue("points");
+            if (p > maxPoints) {
+                maxPoints = p;
+            }
+        }
+
         LayoutInflater inflater = LayoutInflater.from(this);
         for (int i = 0; i < drawList.size(); i++) {
             JSONObject item = drawList.getJSONObject(i);
@@ -129,9 +197,13 @@ public class RedPacketRecordsActivity extends Activity {
             if (TextUtils.isEmpty(name)) {
                 name = "用户";
             }
+            double points = item.getDoubleValue("points");
             ((TextView) row.findViewById(R.id.recordName)).setText(name);
             ((TextView) row.findViewById(R.id.recordPoints)).setText(
-                trimZero(item.getDoubleValue("points")) + "积分");
+                trimZero(points) + "积分");
+            if (drawList.size() > 1 && maxPoints > 0 && points >= maxPoints) {
+                row.findViewById(R.id.bestLabel).setVisibility(View.VISIBLE);
+            }
             long ts = item.getLongValue("createTime");
             ((TextView) row.findViewById(R.id.recordTime)).setText(
                 ts > 0 ? new SimpleDateFormat("HH:mm", Locale.CHINA).format(new Date(ts)) : "");
@@ -154,6 +226,38 @@ public class RedPacketRecordsActivity extends Activity {
                 divider.setLayoutParams(lp);
                 list.addView(divider);
             }
+        }
+    }
+
+    /** 「，N秒被抢光」：最后一条领取时间 − 红包创建时间（后端未返回创建时间则为空） */
+    private String grabbedSeconds(JSONObject detail) {
+        long created = detail.getLongValue("createTime");
+        if (created <= 0) {
+            created = detail.getLongValue("createdAt");
+        }
+        JSONArray drawList = detail.getJSONArray("drawList");
+        if (created <= 0 || drawList == null || drawList.isEmpty()) {
+            return "";
+        }
+        long last = 0;
+        for (int i = 0; i < drawList.size(); i++) {
+            long ts = drawList.getJSONObject(i).getLongValue("createTime");
+            if (ts > last) {
+                last = ts;
+            }
+        }
+        if (last <= created) {
+            return "";
+        }
+        return "，" + Math.max(1, (last - created) / 1000) + "秒被抢光";
+    }
+
+    /** 点「已存入"我的积分"」→ 通知 uniapp 跳我的积分页 */
+    private void openMyPoints() {
+        try {
+            io.dcloud.uniplugin.TestModule.emitGlobalEvent("OPEN_MY_POINTS", new JSONObject());
+        } catch (Exception e) {
+            Toast.makeText(this, "打开我的积分失败", Toast.LENGTH_SHORT).show();
         }
     }
 

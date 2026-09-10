@@ -107,9 +107,24 @@ public class MemberPickerActivity extends android.app.Activity {
         currentList = dataSource.getCache();
 
         adapter = new MemberPickerAdapter(options.isMulti(), options.isReadOnly(), options.grouping,
-            !("KICK".equals(options.action) || "MUTE".equals(options.action)), new MemberPickerAdapter.Callback() {
+            !("KICK".equals(options.action) || "MUTE".equals(options.action)), options.returnOnPick,
+            new MemberPickerAdapter.Callback() {
             @Override
             public void onItemClick(Member member) {
+                // 只读 + returnOnPick：点成员看资料（原生资料页压在列表之上，返回仍在列表，与微信一致）
+                if (options.isReadOnly()) {
+                    android.util.Log.i("MemberClick", "picker(page) click gid=" + options.conversationId
+                        + " memberId=" + (member == null ? "null" : member.memberId)
+                        + " zim=" + (member == null ? "null" : member.zimUserId));
+                    if (member != null) {
+                        // 传列表里现成的 ZIM userId（最可靠），没有才退回裸 memberId
+                        String uid = member.zimUserId == null || member.zimUserId.isEmpty()
+                            ? member.memberId : member.zimUserId;
+                        TestModule.openMemberProfileWith(MemberPickerActivity.this,
+                            options.conversationId, uid);
+                    }
+                    return;
+                }
                 deliverSuccess(member);
                 finish();
             }

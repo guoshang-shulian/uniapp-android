@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  红包页沉浸式（edge-to-edge）：内容绘制到状态栏之下，状态栏本身透明。
+  · 若窗口背景是深色/红色（红包记录页），调用 setLight(false) → 状态栏图标/时间白色
+  · 若窗口背景是浅色（发红包页），调用 setLight(true) → 图标深色
+  用法：ImmersiveBar.apply(activity, true);
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#00000000" />
+</shape>

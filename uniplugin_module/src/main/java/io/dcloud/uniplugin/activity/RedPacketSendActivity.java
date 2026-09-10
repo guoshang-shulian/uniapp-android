@@ -94,15 +94,8 @@ public class RedPacketSendActivity extends android.app.Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_red_packet_send);
-        // 状态栏改为页面背景色（灰色 #EDEDED + 深色图标）
-        try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                getWindow().setStatusBarColor(android.graphics.Color.parseColor("#EDEDED"));
-                getWindow().getDecorView().setSystemUiVisibility(
-                    android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-            }
-        } catch (Exception ignored) {
-        }
+        // 沉浸式：页面 #EDEDED 背景延伸进状态栏（状态栏透明 + 深色图标），不再是单独一条色带
+        io.dcloud.uniplugin.otherutils.ImmersiveBar.colorBar(this, 0xFFEDEDED, true);
 
         conversationId = getIntent().getStringExtra("conversationId");
         conversationType = getIntent().getStringExtra("conversationType");

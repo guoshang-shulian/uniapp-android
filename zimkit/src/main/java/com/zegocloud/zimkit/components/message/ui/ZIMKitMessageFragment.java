@@ -660,7 +660,16 @@ public class ZIMKitMessageFragment extends BaseFragment<ZimkitFragmentMessageBin
         });
     }
 
-    /** 禁言态刷新（个体 muteExpiredTime；进入页面/onResume 自动恢复） */
+    /**
+     * 禁言态刷新。
+     * 两路并行取证（不再翻 100 人成员列表找自己）：
+     *  1) queryGroupMemberInfo(自己) → 个体禁言（muteExpiredTime）+ 自己的角色（memberRole）
+     *  2) queryGroupInfo(群)         → 全员禁言（mutedInfo.mode == All）
+     * 单位兼容：>1e12 视为毫秒，否则视为秒（避免秒/毫秒混用时永久判 false）。
+     *
+     * 权限语义：**群主(1)/管理员(2) 不受禁言影响**（全员禁言 + 个体禁言都不生效）——
+     * 即使服务端状态被判为禁言，也强制按未禁言展示，避免出现「群主被禁言无法发言」。
+     */
     private void refreshMuteState() {
         try {
             if (conversationType != im.zego.zim.enums.ZIMConversationType.GROUP) {
@@ -671,35 +680,114 @@ public class ZIMKitMessageFragment extends BaseFragment<ZimkitFragmentMessageBin
             if (self == null || conversationID == null) {
                 return;
             }
-            im.zego.zim.entity.ZIMGroupMemberQueryConfig config =
-                new im.zego.zim.entity.ZIMGroupMemberQueryConfig();
-            config.count = 100;
-            config.nextFlag = 0;
-            ZIMKitCore.getInstance().zim().queryGroupMemberList(conversationID, config,
-                (gid, memberList, flag, errorInfo) -> {
-                    if (errorInfo != null && errorInfo.code == im.zego.zim.enums.ZIMErrorCode.SUCCESS
-                        && memberList != null) {
-                        boolean muted = false;
-                        for (im.zego.zim.entity.ZIMGroupMemberInfo info : memberList) {
-                            if (info != null && self.equals(info.userID)) {
-                                muted = info.muteExpiredTime > System.currentTimeMillis();
-                                break;
-                            }
-                        }
-                        final boolean mm = muted;
-                        if (getActivity() != null) {
-                            getActivity().runOnUiThread(() -> mBinding.inputViewLayout.setMutedState(mm));
-                        }
+            final String gid = conversationID;
+            final java.util.concurrent.atomic.AtomicBoolean memberMuted =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
+            final java.util.concurrent.atomic.AtomicBoolean allMuted =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
+            final java.util.concurrent.atomic.AtomicBoolean privileged =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
+            final java.util.concurrent.atomic.AtomicInteger pending =
+                new java.util.concurrent.atomic.AtomicInteger(2);
+
+            ZIMKitCore.getInstance().zim().queryGroupMemberInfo(self, gid,
+                (groupID, info, errorInfo) -> {
+                    if (errorInfo != null
+                        && errorInfo.code == im.zego.zim.enums.ZIMErrorCode.SUCCESS && info != null) {
+                        long until = normalizeToMillis(info.muteExpiredTime);
+                        // >0 即处于禁言；-1/极大值 视为永久禁言
+                        memberMuted.set(until > System.currentTimeMillis());
+                        // memberRole：1=群主 2=管理员 3=成员 → 前两者豁免禁言
+                        privileged.set(info.memberRole == ROLE_OWNER || info.memberRole == ROLE_ADMIN);
+                    }
+                    if (pending.decrementAndGet() == 0) {
+                        applyMuteState(memberMuted.get(), allMuted.get(), privileged.get());
                     }
                 });
-        } catch (Exception ignored) {
+
+            ZIMKitCore.getInstance().zim().queryGroupInfo(gid, (groupInfo, errorInfo) -> {
+                try {
+                    if (errorInfo != null
+                        && errorInfo.code == im.zego.zim.enums.ZIMErrorCode.SUCCESS && groupInfo != null
+                        && groupInfo.mutedInfo != null) {
+                        allMuted.set(groupInfo.mutedInfo.mode == im.zego.zim.enums.ZIMGroupMuteMode.All);
+                    }
+                } catch (Exception ignored) {
+                }
+                if (pending.decrementAndGet() == 0) {
+                    applyMuteState(memberMuted.get(), allMuted.get(), privileged.get());
+                }
+            });
+        } catch (Exception e) {
+            android.util.Log.w("MuteState", "refreshMuteState fail: " + e);
         }
+    }
+
+    /** ZIM memberRole：1=群主 2=管理员 3=成员 */
+    private static final int ROLE_OWNER = 1;
+    private static final int ROLE_ADMIN = 2;
+
+    /** 服务端可能下发秒或毫秒时间戳：统一成毫秒比较 */
+    private static long normalizeToMillis(long value) {
+        return value > 0 && value < 1000000000000L ? value * 1000L : value;
+    }
+
+    private void applyMuteState(boolean memberMuted, boolean allMuted, boolean privileged) {
+        // 群主/管理员：不受全员禁言、也不受个体禁言影响（权限豁免）
+        final boolean muted = !privileged && (memberMuted || allMuted);
+        // 全员禁言文案：管理员视角不展示「全员禁言中」输入条（他照常能发）
+        final boolean showAll = !privileged && allMuted;
+        android.util.Log.i("MuteState", "gid=" + conversationID + " memberMuted=" + memberMuted
+            + " allMuted=" + allMuted + " privileged(owner/admin)=" + privileged
+            + " -> muted=" + muted);
+        if (getActivity() == null) {
+            return;
+        }
+        getActivity().runOnUiThread(() -> {
+            try {
+                if (mBinding != null) {
+                    mBinding.inputViewLayout.setMutedState(muted, showAll);
+                }
+            } catch (Exception e) {
+                android.util.Log.w("MuteState", "apply fail: " + e);
+            }
+        });
+    }
+
+    /** 禁言相关实时事件 → 刷新当前聊天页（由 ZIMKitEventHandler 调用） */
+    public interface MuteRefreshCallback {
+        void onMuteEvent(String groupId);
+    }
+
+    private static volatile MuteRefreshCallback sMuteListener;
+
+    public static void setMuteRefreshCallback(MuteRefreshCallback callback) {
+        sMuteListener = callback;
+    }
+
+    public static void notifyMuteEvent(String groupId) {
+        MuteRefreshCallback cb = sMuteListener;
+        if (cb != null) {
+            try {
+                cb.onMuteEvent(groupId);
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private void onMuteEventInternal(String groupId) {
+        if (groupId == null || conversationID == null || !groupId.equals(conversationID)) {
+            return;
+        }
+        refreshMuteState();
     }
 
     @Override
     public void onResume() {
         super.onResume();
         refreshMuteState();
+        // 注册禁言实时刷新（成员被禁言/解禁、全员禁言开关变化 → 秒级更新禁言条）
+        setMuteRefreshCallback(this::onMuteEventInternal);
     }
 
     private void pickFileToSend() {
@@ -1040,6 +1128,7 @@ public class ZIMKitMessageFragment extends BaseFragment<ZimkitFragmentMessageBin
         //Pause audio playback
         ZIMKitAudioPlayer.getInstance().stopPlay();
         ZIMKitKeyboardUtils.closeSoftKeyboard(getActivity());
+        setMuteRefreshCallback(null);
     }
 
     @Override

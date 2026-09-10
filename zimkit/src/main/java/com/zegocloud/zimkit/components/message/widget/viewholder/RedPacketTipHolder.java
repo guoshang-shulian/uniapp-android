@@ -41,7 +41,7 @@ public class RedPacketTipHolder extends MessageViewHolder {
         String drawerName = card.getNestedString("detail", "userName");
         String ownerId = card.getNestedString("detail", "packetOwnerId");
         String ownerName = card.getNestedString("detail", "packetOwnerName");
-        boolean isLast = "true".equals(card.getNestedString("detail", "isLast"));
+        boolean isLast = "true".equalsIgnoreCase(card.getNestedString("detail", "isLast"));
         String selfId = ZIMKitCore.getInstance().getLocalUser() == null ? ""
             : ZIMKitCore.getInstance().getLocalUser().getId();
         if (TextUtils.isEmpty(drawerName)) {
@@ -51,10 +51,16 @@ public class RedPacketTipHolder extends MessageViewHolder {
             ownerName = "好友";
         }
 
+        // 仿微信文案：
+        // · 自己领的        → 你领取了{发红包人}的红包 / 你领取了自己的红包
+        // · 别人领我的      → {昵称}领取了你的红包[，你的红包已被领完]
+        // · 旁观的第三方    → {昵称}领取了红包[，红包已被领完]
+        boolean selfDrew = !TextUtils.isEmpty(selfId) && selfId.equals(drawerId);
+        boolean minePacket = !TextUtils.isEmpty(selfId) && selfId.equals(ownerId);
         String text;
-        if (!TextUtils.isEmpty(selfId) && selfId.equals(drawerId)) {
-            text = "你领取了" + ownerName + "的红包";
-        } else if (!TextUtils.isEmpty(selfId) && selfId.equals(ownerId)) {
+        if (selfDrew) {
+            text = minePacket ? "你领取了自己的红包" : ("你领取了" + ownerName + "的红包");
+        } else if (minePacket) {
             text = drawerName + "领取了你的红包" + (isLast ? "，你的红包已被领完" : "");
         } else {
             text = drawerName + "领取了红包" + (isLast ? "，红包已被领完" : "");

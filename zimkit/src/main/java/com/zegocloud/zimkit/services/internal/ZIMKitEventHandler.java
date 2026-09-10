@@ -166,6 +166,24 @@ public class ZIMKitEventHandler extends ZIMEventHandler {
     public void onGroupMemberInfoUpdated(ZIM zim, ArrayList<ZIMGroupMemberInfo> userList,
         ZIMGroupOperatedInfo operatedInfo, String groupID) {
         super.onGroupMemberInfoUpdated(zim, userList, operatedInfo, groupID);
+        // 成员信息变化（含个体被禁言/解禁、昵称头像等）→ 刷新聊天页禁言态
+        notifyMuteChanged(groupID);
+    }
+
+    @Override
+    public void onGroupMutedInfoUpdated(ZIM zim, im.zego.zim.entity.ZIMGroupMuteInfo muteInfo,
+        ZIMGroupOperatedInfo operatedInfo, String groupID) {
+        super.onGroupMutedInfoUpdated(zim, muteInfo, operatedInfo, groupID);
+        // 全员禁言开关变化 → 刷新聊天页禁言态
+        notifyMuteChanged(groupID);
+    }
+
+    /** 禁言相关事件 → 让当前打开的聊天页立即刷新禁言条（秒级，不用退出重进） */
+    private static void notifyMuteChanged(String groupID) {
+        try {
+            com.zegocloud.zimkit.components.message.ui.ZIMKitMessageFragment.notifyMuteEvent(groupID);
+        } catch (Exception ignored) {
+        }
     }
 
     @Override

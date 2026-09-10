@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  红包弹窗上半区（Figma 5339:6593 / docs/红包上半部分.svg 原样搬运）
+  578×769px → 289×384.5dp；底边为弧线：两端 y≈709px(354.5dp)，中间最低 769px(384.5dp)
+  内阴影 x0 y0 blur4 #000000@20% → 用叠层渐变近似（见 activity_red_packet_open.xml）
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="289dp"
+    android:height="384.5dp"
+    android:viewportWidth="578"
+    android:viewportHeight="769">
+    <path
+        android:fillColor="#EE4D2C"
+        android:pathData="M0,24C0,10.7452 10.7452,0 24,0H554C567.255,0 578,10.7452 578,24V689.221C578,695.192 575.793,700.965 571.654,705.269C570.487,706.482 569.244,707.756 568,709C563,714 463.5,769 289,769C114.5,769 14,713 10,709C8.90455,707.905 7.6591,706.622 6.42797,705.336C2.25503,700.978 0,695.15 0,689.116V24Z" />
+</vector>

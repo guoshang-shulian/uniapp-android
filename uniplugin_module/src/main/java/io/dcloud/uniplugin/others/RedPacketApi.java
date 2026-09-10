@@ -130,13 +130,15 @@ public class RedPacketApi {
                         + " url=" + call.request().url()
                         + " tokenLen=" + io.dcloud.uniplugin.TestModule.getBusinessToken().length()
                         + " body=" + brief);
-                    // 401/403：多为 token 过期/未同步 → 通知 uniapp 刷新 token 后自动重试一次
+                    // 401/403：多为 token 过期/未同步 → 通知 uniapp 刷新 token 后自动重试一次。
+                    // 重试时**重新取一次 token**（不再用旧的闭包变量），避免 uniapp 已刷新但重试还用旧值。
                     if ((res.code() == 401 || res.code() == 403) && attempt == 0) {
                         io.dcloud.uniplugin.TestModule.requestBusinessConfigRefresh();
                         new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                            System.out.println("[RedPacketApi] retry after token refresh, url=" + unsignedUrl);
-                            Request retry = buildRequest(unsignedUrl,
-                                io.dcloud.uniplugin.TestModule.getBusinessToken(), body, isGet);
+                            String freshToken = io.dcloud.uniplugin.TestModule.getBusinessToken();
+                            System.out.println("[RedPacketApi] retry after token refresh, url=" + unsignedUrl
+                                + " tokenLen=" + freshToken.length());
+                            Request retry = buildRequest(unsignedUrl, freshToken, body, isGet);
                             request(retry, unsignedUrl, body, isGet, callback, 1);
                         }, 800);
                         return;

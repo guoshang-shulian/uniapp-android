@@ -10,6 +10,7 @@ import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -22,6 +23,8 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.ImageView;
 import android.widget.ImageView.ScaleType;
 import android.widget.LinearLayout;
+import android.widget.TextView;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
@@ -54,7 +57,6 @@ public class ZIMKitMessageInputView extends LinearLayout {
     private ZIMKitMessageModel repliedMessage;
     private OnGlobalLayoutListener globalLayoutListener;
     private String normalHint = "";
-    private View muteMask;
     private CharSequence normalHintSeq = "";
 
     public ZIMKitMessageInputView(Context context) {
@@ -115,6 +117,12 @@ public class ZIMKitMessageInputView extends LinearLayout {
             normalHintSeq = zimKitConfig.inputConfig.inputHint;
             normalHint = normalHintSeq.toString();
             binding.inputEdittext.setHint(normalHintSeq);
+        }
+        // 禁言提示条：点击给反馈（禁言时它是唯一可点的元素）
+        muteBar = findViewById(R.id.input_muted_bar);
+        if (muteBar != null) {
+            muteBar.setOnClickListener(v -> Toast.makeText(getContext(),
+                R.string.zimkit_muted_tip, Toast.LENGTH_SHORT).show());
         }
         List<ZIMKitInputButtonModel> buttonModels = new ArrayList<>();
         if (zimKitConfig != null && zimKitConfig.inputConfig != null) {
@@ -238,28 +246,78 @@ public class ZIMKitMessageInputView extends LinearLayout {
 
     private static final String TAG = "ZIMKitInputView";
 
-    /** 禁言态：占位字「禁言中」+ 透明遮罩禁点底部输入面板；解除后恢复原样 */
-    public void setMutedState(boolean muted) {
+    /**
+     * 禁言态：**不用覆盖层**，直接把输入区整体换成一条提示条。
+     * · 无覆盖层 → 与分辨率/dpi/换行/键盘都无关，不存在"遮不住"
+     * · 提示条自身可点（点击给 toast 反馈），其余按钮全部 GONE → 天然不可点
+     *
+     * @param muted 是否禁言
+     * @param all   是否全员禁言（true 显示"全员禁言中"）
+     */
+    public void setMutedState(boolean muted, boolean all) {
         post(() -> {
-            if (muted) {
-                binding.inputEdittext.setHint("禁言中");
-                if (muteMask == null) {
-                    muteMask = new View(getContext());
-                    muteMask.setBackgroundColor(0x33000000);
-                    muteMask.setClickable(true);
-                    muteMask.setFocusableInTouchMode(true);
-                    addView(muteMask, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+            try {
+                if (muted) {
+                    hideKeyboard();
+                    setInputAreaEnabled(false);
+                    if (muteBar != null) {
+                        muteBar.setText(all
+                            ? getContext().getString(R.string.zimkit_muted_all_tip)
+                            : getContext().getString(R.string.zimkit_muted_tip));
+                        muteBar.setVisibility(View.VISIBLE);
+                    }
                 } else {
-                    muteMask.setVisibility(View.VISIBLE);
+                    if (muteBar != null) {
+                        muteBar.setVisibility(View.GONE);
+                    }
+                    setInputAreaEnabled(true);
                 }
-                hideKeyboard();
-            } else {
-                binding.inputEdittext.setHint(normalHintSeq);
-                if (muteMask != null) {
-                    muteMask.setVisibility(View.GONE);
-                }
+            } catch (Exception e) {
+                Log.w(TAG, "setMutedState fail: " + e);
             }
         });
+    }
+
+    /** 兼容旧调用（默认按个体禁言文案） */
+    public void setMutedState(boolean muted) {
+        setMutedState(muted, false);
+    }
+
+    /** 顶部禁言提示条（XML 中的 input_muted_bar） */
+    private TextView muteBar;
+
+    /** 输入区各视图的原始可见性（首次记录，解禁时还原，避免把本来就是 GONE 的错显） */
+    private final java.util.Map<View, Integer> originalVisibility = new java.util.HashMap<>();
+
+    private void setInputAreaEnabled(boolean enabled) {
+        View[] views = new View[]{
+            binding.inputEdittext, binding.inputExpandPanel, binding.inputButtonsLayout,
+            binding.inputSend, binding.inputViewMoreLayout, binding.inputViewEmojiLayout,
+            binding.inputViewAudioLayout, binding.inputLine
+        };
+        for (View v : views) {
+            if (v == null) {
+                continue;
+            }
+            if (!originalVisibility.containsKey(v)) {
+                if (!enabled) {
+                    originalVisibility.put(v, v.getVisibility());
+                }
+                // enabled 且没记录过 → 本来就是原始态，无需处理
+                if (!originalVisibility.containsKey(v)) {
+                    continue;
+                }
+            }
+            if (enabled) {
+                Integer origin = originalVisibility.get(v);
+                v.setVisibility(origin == null ? View.VISIBLE : origin);
+            } else {
+                v.setVisibility(View.GONE);
+            }
+        }
+        if (enabled) {
+            originalVisibility.clear();
+        }
     }
 
     private void hideKeyboard() {

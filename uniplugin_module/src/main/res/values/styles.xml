@@ -15,6 +15,21 @@
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
+    <!--
+      插件内所有原生 Activity 统一主题（原为 @android:style/Theme.DeviceDefault.Light.NoActionBar）。
+      为什么必须换掉：MIUI 等 ROM 会把「平台默认主题」强制替换成 DeviceDefault.Light.DarkActionBar，
+      导致 ?selectableItemBackground 等属性解析不到 → inflate 抛 UnsupportedOperationException → 页面白屏崩溃
+      （红包领取记录页 2026-09-10 18:14 实测崩溃根因）。
+      Material 继承链完整、属性齐全，被强制替换时也不缺属性。
+    -->
+    <style name="AppTheme.UniPlugin.NoActionBar" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+    </style>
+
     <!-- 微信式底部弹窗（红包类型/成员选择） -->
     <style name="BottomSheetDialogTheme" parent="@android:style/Theme.DeviceDefault.Light.Dialog">
         <item name="android:windowIsFloating">true</item>

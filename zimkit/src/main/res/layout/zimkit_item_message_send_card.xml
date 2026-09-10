@@ -81,10 +81,10 @@
         android:background="@drawable/zimkit_shape_8dp_white_card"
         android:clickable="true"
         android:elevation="2dp"
-        android:paddingLeft="10dp"
-        android:paddingTop="10dp"
-        android:paddingRight="10dp"
-        android:paddingBottom="10dp">
+        android:paddingLeft="12dp"
+        android:paddingTop="8dp"
+        android:paddingRight="12dp"
+        android:paddingBottom="6dp">
 
         <LinearLayout
           android:id="@+id/item_message_reply_layout"
@@ -94,18 +94,131 @@
           android:visibility="gone"
           app:layout_constraintTop_toTopOf="parent" />
 
-        <LinearLayout
+        <!-- 红包卡（Figma 5339:6257，750 稿 @2x → dp）：整卡 496×168 → 248×84dp，底 #FD9728 r24px→12dp；
+             封套 76×90 → 38×45dp，卡内偏移 24,16px → 12dp,8dp；分隔线 448×1 → 224×0.5dp 白 30%，卡内 y122px → 61dp；
+             「积分红包」20px → 10sp 白 y131px → 65.5dp；祝福语 32px → 16sp（正文左边界 116px → 58dp，y38px → 19dp）；
+             专属卡次行 28px → 14sp y98px → 49dp；已被领完整卡 op=0.5 -->
+        <FrameLayout
           android:id="@+id/item_card_layout"
+          android:layout_width="248dp"
+          android:layout_height="92dp"
+          app:layout_constraintStart_toStartOf="parent"
+          app:layout_constraintTop_toBottomOf="@+id/item_message_reply_layout"
+          app:layout_goneMarginTop="0dp">
+
+          <View
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/zimkit_shape_red_packet_card" />
+
+          <ImageView
+            android:id="@+id/card_icon"
+            android:layout_width="38dp"
+            android:layout_height="45dp"
+            android:layout_gravity="top|start"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/zimkit_ic_envelope_card" />
+
+          <TextView
+            android:id="@+id/card_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:layout_marginStart="54dp"
+            android:layout_marginTop="22dp"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:lineSpacingMultiplier="1.4"
+            android:maxLines="1"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            tools:text="恭喜发财，大吉大利" />
+
+          <TextView
+            android:id="@+id/card_subtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:layout_marginStart="54dp"
+            android:layout_marginTop="46dp"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:lineSpacingMultiplier="1.4"
+            android:maxLines="1"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            tools:text="恭喜发财，大吉大利" />
+
+          <View
+            android:id="@+id/card_divider"
+            android:layout_width="232dp"
+            android:layout_height="0.5dp"
+            android:layout_gravity="top|start"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="70dp"
+            android:background="#4DFFFFFF"
+            android:visibility="gone" />
+
+          <TextView
+            android:id="@+id/card_footer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="74dp"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text="积分红包"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp" />
+
+          <!-- 商品/文章卡复用视图（红包卡时隐藏，由代码按类型切换） -->
+          <TextView
+            android:id="@+id/card_desc"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:layout_marginStart="58dp"
+            android:layout_marginTop="56dp"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:maxLines="2"
+            android:textColor="@color/color_646A73"
+            android:textSize="12sp"
+            android:visibility="gone"
+            tools:text="商品描述" />
+
+          <TextView
+            android:id="@+id/card_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:layout_marginStart="200dp"
+            android:layout_marginTop="67dp"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="@color/color_86A3B8"
+            android:textSize="11sp"
+            tools:text="100积分" />
+        </FrameLayout>
+
+        <!-- 商品 / 店铺 / 文章卡：左图右文行（红包卡时整体隐藏） -->
+        <LinearLayout
+          android:id="@+id/item_card_row"
           android:layout_width="248dp"
           android:layout_height="wrap_content"
           android:gravity="center_vertical"
+          android:minHeight="77.5dp"
           android:orientation="horizontal"
+          android:visibility="gone"
           app:layout_constraintStart_toStartOf="parent"
           app:layout_constraintTop_toBottomOf="@+id/item_message_reply_layout"
           app:layout_goneMarginTop="0dp">
 
           <ImageView
-            android:id="@+id/card_icon"
+            android:id="@+id/card_icon_row"
             android:layout_width="56dp"
             android:layout_height="56dp"
             android:layout_marginEnd="10dp"
@@ -114,13 +227,14 @@
             tools:src="@mipmap/zimkit_icon_group" />
 
           <LinearLayout
+            android:id="@+id/card_text_column"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:orientation="vertical">
 
             <TextView
-              android:id="@+id/card_title"
+              android:id="@+id/card_title_row"
               android:layout_width="match_parent"
               android:layout_height="wrap_content"
               android:ellipsize="end"
@@ -131,7 +245,7 @@
               tools:text="拼手气红包" />
 
             <TextView
-              android:id="@+id/card_subtitle"
+              android:id="@+id/card_subtitle_row"
               android:layout_width="match_parent"
               android:layout_height="wrap_content"
               android:layout_marginTop="3dp"
@@ -140,10 +254,10 @@
               android:maxLines="1"
               android:textColor="@color/color_646A73"
               android:textSize="12sp"
-              tools:text="恭喜发财，大吉大利" />
+              tools:text="店铺名" />
 
             <TextView
-              android:id="@+id/card_desc"
+              android:id="@+id/card_desc_row"
               android:layout_width="match_parent"
               android:layout_height="wrap_content"
               android:layout_marginTop="3dp"
@@ -191,22 +305,15 @@
                 tools:text="库存 180" />
             </LinearLayout>
 
-            <View
-              android:id="@+id/card_divider"
-              android:layout_width="match_parent"
-              android:layout_height="0.5dp"
-              android:layout_marginTop="6dp"
-              android:background="#4DFFFFFF"
-              android:visibility="gone" />
-
             <LinearLayout
+              android:id="@+id/card_footer_row"
               android:layout_width="match_parent"
               android:layout_height="wrap_content"
-              android:layout_marginTop="5dp"
+              android:layout_marginTop="8dp"
               android:orientation="horizontal">
 
               <TextView
-                android:id="@+id/card_footer"
+                android:id="@+id/card_footer_row_text"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -218,7 +325,7 @@
                 tools:text="示例店铺" />
 
               <TextView
-                android:id="@+id/card_status"
+                android:id="@+id/card_status_row"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"

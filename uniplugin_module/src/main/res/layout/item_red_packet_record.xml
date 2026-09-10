@@ -19,7 +19,7 @@
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
+        android:layout_marginStart="12dp"
         android:layout_weight="1"
         android:orientation="vertical">
 
@@ -55,22 +55,16 @@
         android:textColor="#111111"
         android:textSize="16sp" />
 
-    <ImageView
-        android:id="@+id/bestIcon"
-        android:layout_width="17dp"
-        android:layout_height="17dp"
-        android:layout_marginStart="4dp"
-        android:contentDescription=""
-        android:src="@drawable/ic_red_packet_best_star"
-        android:visibility="gone" />
-
+    <!-- 手气最佳（Figma 5339:6755：24px→12sp #FF913D，金额下方右对齐） -->
     <TextView
         android:id="@+id/bestLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
         android:layout_marginStart="4dp"
+        android:includeFontPadding="false"
         android:text="手气最佳"
-        android:textColor="#EDB746"
-        android:textSize="11sp"
+        android:textColor="#FF913D"
+        android:textSize="12sp"
         android:visibility="gone" />
 </LinearLayout>

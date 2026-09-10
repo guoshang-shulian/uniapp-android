@@ -37,14 +37,22 @@ public class MemberPickerAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
     private final boolean readOnly;
     private final boolean grouping;
     private final boolean preselectDisabled;
+    /** 只读 + 单选：点击条目仍回调（用于"点成员看资料"，不返回选择结果） */
+    private final boolean tappableReadOnly;
     private final Callback callback;
 
     public MemberPickerAdapter(boolean multi, boolean readOnly, boolean grouping,
         boolean preselectDisabled, Callback callback) {
+        this(multi, readOnly, grouping, preselectDisabled, false, callback);
+    }
+
+    public MemberPickerAdapter(boolean multi, boolean readOnly, boolean grouping,
+        boolean preselectDisabled, boolean tappableReadOnly, Callback callback) {
         this.multi = multi;
         this.readOnly = readOnly;
         this.grouping = grouping;
         this.preselectDisabled = preselectDisabled;
+        this.tappableReadOnly = tappableReadOnly;
         this.callback = callback;
     }
 
@@ -244,7 +252,14 @@ public class MemberPickerAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
 
         h.itemView.setAlpha(m.disabled ? 0.6f : 1f);
         h.itemView.setOnClickListener(v -> {
-            if (m.disabled || readOnly) {
+            if (m.disabled) {
+                return;
+            }
+            if (readOnly) {
+                // 只读列表默认不可点；tappableReadOnly（点成员看资料）时把点击透出去
+                if (tappableReadOnly && callback != null) {
+                    callback.onItemClick(m);
+                }
                 return;
             }
             if (!multi) {

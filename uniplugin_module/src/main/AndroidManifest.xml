@@ -1,28 +1,28 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 <application>
 <activity android:name="io.dcloud.uniplugin.activity.NativePageActivity"
-    android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
+    android:theme="@style/AppTheme.UniPlugin.NoActionBar"
     android:exported="false"></activity>
 <activity android:name="io.dcloud.uniplugin.activity.RedPacketSendActivity"
-    android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
+    android:theme="@style/AppTheme.UniPlugin.NoActionBar"
     android:exported="false"></activity>
 <activity android:name="io.dcloud.uniplugin.activity.RedPacketDetailActivity"
-    android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
+    android:theme="@style/AppTheme.UniPlugin.NoActionBar"
     android:exported="false"></activity>
 <activity android:name="io.dcloud.uniplugin.activity.MemberInfoActivity"
-    android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
+    android:theme="@style/AppTheme.UniPlugin.NoActionBar"
     android:exported="false"></activity>
 <activity android:name="io.dcloud.uniplugin.activity.GroupQrcodeActivity"
-    android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
+    android:theme="@style/AppTheme.UniPlugin.NoActionBar"
     android:exported="false"></activity>
 <activity android:name="io.dcloud.uniplugin.activity.RedPacketRecordsActivity"
-    android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
+    android:theme="@style/AppTheme.UniPlugin.NoActionBar"
     android:exported="false"></activity>
 <activity android:name="io.dcloud.uniplugin.memberpicker.MemberPickerActivity"
-    android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
+    android:theme="@style/AppTheme.UniPlugin.NoActionBar"
     android:exported="false"></activity>
 <activity android:name="io.dcloud.uniplugin.memberpicker.GroupMembersActivity"
-    android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
+    android:theme="@style/AppTheme.UniPlugin.NoActionBar"
     android:exported="false"></activity>
 </application>
 </manifest>

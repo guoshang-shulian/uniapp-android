@@ -37,6 +37,12 @@ public class MemberPickerOptions {
     public boolean previewMock = false;
     /** CUSTOM 数据源：外部传入成员列表（如后端禁言列表） */
     public List<Member> customMembers = new ArrayList<>();
+    /**
+     * 只读模式下（readOnly=true）点击条目是否仍然回调。
+     * 场景：「社群信息 → 社群成员」查看成员资料 —— 只读、单选、点人看资料，不返回选择结果。
+     * 默认 false：只读列表点击无响应（历史行为）。
+     */
+    public boolean returnOnPick = false;
 
     public static MemberPickerOptions fromJson(String json) {
         MemberPickerOptions o = new MemberPickerOptions();
@@ -67,6 +73,7 @@ public class MemberPickerOptions {
             o.confirmText = obj.getString("confirmText") == null ? "确定" : obj.getString("confirmText");
             o.muteOnly = obj.getBooleanValue("muteOnly");
             o.previewMock = obj.getBooleanValue("previewMock");
+            o.returnOnPick = obj.getBooleanValue("returnOnPick");
             JSONArray arr = obj.getJSONArray("customMembers");
             if (arr != null) {
                 for (int i = 0; i < arr.size(); i++) {

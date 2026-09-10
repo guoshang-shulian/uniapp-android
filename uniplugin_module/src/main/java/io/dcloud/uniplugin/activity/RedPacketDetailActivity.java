@@ -75,15 +75,8 @@ public class RedPacketDetailActivity extends android.app.Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_red_packet_detail);
-        // 状态栏与页面同灰（#EDEDED + 深色图标）
-        try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                getWindow().setStatusBarColor(android.graphics.Color.parseColor("#EDEDED"));
-                getWindow().getDecorView().setSystemUiVisibility(
-                    android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-            }
-        } catch (Exception ignored) {
-        }
+        // 沉浸式：页面 #EDEDED 背景延伸进状态栏（状态栏透明 + 深色图标）
+        io.dcloud.uniplugin.otherutils.ImmersiveBar.colorBar(this, 0xFFEDEDED, true);
 
         redPacketId = getIntent().getStringExtra("redPacketId");
         conversationId = getIntent().getStringExtra("conversationId");
@@ -315,7 +308,6 @@ public class RedPacketDetailActivity extends android.app.Activity {
 
             boolean best = maxPoints > 0 && points >= maxPoints;
             if (best) {
-                row.findViewById(R.id.bestIcon).setVisibility(View.VISIBLE);
                 row.findViewById(R.id.bestLabel).setVisibility(View.VISIBLE);
             }
 

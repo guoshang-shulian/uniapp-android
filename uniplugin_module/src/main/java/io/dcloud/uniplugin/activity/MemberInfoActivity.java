@@ -41,6 +41,10 @@ public class MemberInfoActivity extends android.app.Activity {
     private String memberUserId = "";
     private boolean updating = false;
 
+    /** ZIM memberRole：1=群主 2=管理员 3=成员（群主/管理员不可被禁言、不可被踢） */
+    private static final int ROLE_OWNER = 1;
+    private static final int ROLE_ADMIN = 2;
+
     private TextView title;
     private ImageView avatar;
     private TextView avatarFallback;
@@ -80,6 +84,8 @@ public class MemberInfoActivity extends android.app.Activity {
         memberUserId = getIntent().getStringExtra("memberUserId");
         if (groupId == null) groupId = "";
         if (memberUserId == null) memberUserId = "";
+        android.util.Log.i("MemberClick", "MemberInfoActivity onCreate gid=" + groupId
+            + " uid=" + memberUserId);
 
         bindViews();
         findViewById(R.id.miBack).setOnClickListener(v -> finish());
@@ -263,12 +269,17 @@ public class MemberInfoActivity extends android.app.Activity {
             phone.setText(maskMobile(mobile));
         }
         String regionTxt = p.getString("region");
-        if (regionTxt != null && !regionTxt.isEmpty()) {
-            region.setText(regionTxt);
+        if (regionTxt == null || regionTxt.isEmpty()) {
+            regionTxt = p.getString("regionName");
         }
-        int lv = p.getIntValue("level");
-        if (lv > 0) {
-            level.setText(lv + "星");
+        region.setText(regionTxt == null ? "" : regionTxt);
+        // 等级：后端给了就显示（0 也显示）；null / 缺字段才不显示
+        if (p.containsKey("level") && p.get("level") != null) {
+            String label = p.getString("levelLabel");
+            level.setText(label != null && !label.isEmpty()
+                ? label : (p.getIntValue("level") + "星"));
+        } else {
+            level.setText("");
         }
         long joinTime = p.getLongValue("joinTime");
         if (joinTime > 0) {
@@ -278,10 +289,11 @@ public class MemberInfoActivity extends android.app.Activity {
         storeValue.setText(storeName == null || storeName.isEmpty() ? "无" : storeName);
         storeId = p.getString("storeId") == null ? "" : p.getString("storeId");
         targetRole = p.getIntValue("role");
-        // 禁言开关：viewerIsOwner 控制（且不是自己）
+        // 禁言开关：viewerIsOwner 控制（且不是自己）；**群主(1)/管理员(2) 不可被禁言 → 不显示开关**
         viewerIsOwner = Boolean.TRUE.equals(p.getBoolean("viewerIsOwner"));
         boolean targetSelf = memberUserId != null && memberUserId.equals(TestModule.getLocalUserId());
-        if (viewerIsOwner && !targetSelf) {
+        boolean targetPrivileged = targetRole == ROLE_OWNER || targetRole == ROLE_ADMIN;
+        if (viewerIsOwner && !targetSelf && !targetPrivileged) {
             boolean muted = Boolean.TRUE.equals(p.getBoolean("muted"));
             muteRow.setVisibility(View.VISIBLE);
             updating = true;
@@ -351,6 +363,11 @@ public class MemberInfoActivity extends android.app.Activity {
     }
 
     private void applyMute(boolean mute) {
+        // 群主/管理员不受禁言影响：开关已隐藏，这里再兜一层，避免误调接口
+        if (targetRole == ROLE_OWNER || targetRole == ROLE_ADMIN) {
+            Toast.makeText(this, "群主/管理员不受禁言限制", Toast.LENGTH_SHORT).show();
+            return;
+        }
         // 禁言/解除走后端（后端调 ZIM）：POST /social/group/member/mute
         try {
             JSONObject body = new JSONObject();

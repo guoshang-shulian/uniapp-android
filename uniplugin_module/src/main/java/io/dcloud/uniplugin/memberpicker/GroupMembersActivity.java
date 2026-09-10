@@ -86,7 +86,10 @@ public class GroupMembersActivity extends Activity {
                 android.util.Log.i("MemberClick", "picker list click gid=" + groupId
                     + " memberId=" + (member == null ? "null" : member.memberId));
                 if (member != null) {
-                    TestModule.openMemberProfile(groupId, member.memberId);
+                    // 传列表里现成的 ZIM userId（最可靠），没有才退回裸 memberId
+                    String uid = member.zimUserId == null || member.zimUserId.isEmpty()
+                        ? member.memberId : member.zimUserId;
+                    TestModule.openMemberProfileWith(GroupMembersActivity.this, groupId, uid);
                 }
             }
         });
