@@ -42,9 +42,9 @@
           android:layout_width="wrap_content"
           android:layout_height="wrap_content"
           android:layout_gravity="center_vertical"
-          android:layout_marginStart="4dp"
+          android:layout_marginStart="12dp"
           android:gravity="center"
-          android:src="@mipmap/zimkit_icon_return" />
+          android:src="@drawable/zimkit_ic_arrow_back" />
 
       </FrameLayout>
 

@@ -49,12 +49,18 @@ public class MemberInfoActivity extends android.app.Activity {
     private TextView region;
     private TextView level;
     private TextView join;
+    private TextView memberIdValue;
     private LinearLayout muteRow;
     private RadioGroup muteGroup;
     private LinearLayout storeRow;
     private TextView storeValue;
     private LinearLayout identityRow;
     private TextView identityValue;
+    private TextView kickBtn;
+    private String storeId = "";
+    private boolean viewerIsOwner = false;
+    private int targetRole = 3;
+    private boolean selfIsAdmin = false;
 
     public static void start(Context context, String groupId, String memberUserId) {
         Intent intent = new Intent(context, MemberInfoActivity.class);
@@ -89,19 +95,23 @@ public class MemberInfoActivity extends android.app.Activity {
         region = findViewById(R.id.miRegionValue);
         level = findViewById(R.id.miLevelValue);
         join = findViewById(R.id.miJoinValue);
+        memberIdValue = findViewById(R.id.miMemberIdValue);
         muteRow = findViewById(R.id.miMuteRow);
         muteGroup = findViewById(R.id.miMuteGroup);
         storeRow = findViewById(R.id.miStoreRow);
         storeValue = findViewById(R.id.miStoreValue);
         identityRow = findViewById(R.id.miIdentityRow);
         identityValue = findViewById(R.id.miIdentityValue);
+        kickBtn = findViewById(R.id.miKickBtn);
+
+        kickBtn.setOnClickListener(v -> confirmKick());
 
         muteGroup.setOnCheckedChangeListener((group, checkedId) -> {
             if (updating) return;
             boolean mute = checkedId == R.id.miMuteYes;
             applyMute(mute);
         });
-        storeRow.setOnClickListener(v -> Toast.makeText(this, "店铺跳转待后端字段", Toast.LENGTH_SHORT).show());
+        storeRow.setOnClickListener(v -> openStore());
     }
 
     private void load() {
@@ -174,6 +184,8 @@ public class MemberInfoActivity extends android.app.Activity {
 
         // 是否禁言：仅群主视角（且非自己）
         boolean selfOwner = self != null && self.memberRole == 1;
+        selfIsAdmin = self != null && self.memberRole == 2;
+        targetRole = target.memberRole;
         boolean targetSelf = self != null && self.userID != null && self.userID.equals(target.userID);
         if (selfOwner && !targetSelf) {
             muteRow.setVisibility(View.VISIBLE);
@@ -203,7 +215,9 @@ public class MemberInfoActivity extends android.app.Activity {
         if (memberId.isEmpty()) return;
         try {
             JSONObject query = new JSONObject();
-            RedPacketApi.get(TestModule.getBusinessBaseUrl() + "/social/contact/" + memberId,
+            query.put("groupId", groupId);
+            query.put("userId", memberId);
+            RedPacketApi.get(TestModule.getBusinessBaseUrl() + "/social/group/member/profile",
                 TestModule.getBusinessToken(), query, new RedPacketApi.Callback() {
                     @Override
                     public void onSuccess(JSONObject result) {
@@ -220,6 +234,30 @@ public class MemberInfoActivity extends android.app.Activity {
     }
 
     private void applyProfile(JSONObject p) {
+        // 头像/昵称
+        String face = p.getString("face");
+        if (face != null && !face.isEmpty()) {
+            avatar.setVisibility(View.VISIBLE);
+            avatarFallback.setVisibility(View.GONE);
+            com.bumptech.glide.Glide.with(this).load(face).circleCrop().into(avatar);
+        }
+        String nickName = p.getString("nickName");
+        if (nickName != null && !nickName.isEmpty()) {
+            nick.setText(nickName);
+            title.setText(nickName);
+        }
+        // 身份（群主/管理员/成员）
+        String identity = p.getString("identity");
+        if (identity != null && !identity.isEmpty()) {
+            identityRow.setVisibility(View.VISIBLE);
+            identityValue.setText(identity);
+        }
+        // 会员ID
+        String mid = p.getString("memberId");
+        if (mid != null && !mid.isEmpty()) {
+            memberIdValue.setText(mid);
+        }
+        // 手机（脱敏）/地区/等级
         String mobile = p.getString("mobile");
         if (mobile != null && !mobile.isEmpty()) {
             phone.setText(maskMobile(mobile));
@@ -228,24 +266,88 @@ public class MemberInfoActivity extends android.app.Activity {
         if (regionTxt != null && !regionTxt.isEmpty()) {
             region.setText(regionTxt);
         }
-        String levelStr = p.getString("level");
-        if (levelStr != null && !levelStr.isEmpty()) {
-            try {
-                int lv = Integer.parseInt(levelStr);
-                level.setText(lv + "星");
-            } catch (Exception e) {
-                level.setText(levelStr);
-            }
+        int lv = p.getIntValue("level");
+        if (lv > 0) {
+            level.setText(lv + "星");
+        }
+        long joinTime = p.getLongValue("joinTime");
+        if (joinTime > 0) {
+            join.setText(formatTime(joinTime));
         }
         String storeName = p.getString("storeName");
-        if (storeName != null && !storeName.isEmpty()) {
-            storeValue.setText(storeName);
+        storeValue.setText(storeName == null || storeName.isEmpty() ? "无" : storeName);
+        storeId = p.getString("storeId") == null ? "" : p.getString("storeId");
+        targetRole = p.getIntValue("role");
+        // 禁言开关：viewerIsOwner 控制（且不是自己）
+        viewerIsOwner = Boolean.TRUE.equals(p.getBoolean("viewerIsOwner"));
+        boolean targetSelf = memberUserId != null && memberUserId.equals(TestModule.getLocalUserId());
+        if (viewerIsOwner && !targetSelf) {
+            boolean muted = Boolean.TRUE.equals(p.getBoolean("muted"));
+            muteRow.setVisibility(View.VISIBLE);
+            updating = true;
+            muteGroup.check(muted ? R.id.miMuteYes : R.id.miMuteNo);
+            updating = false;
+        } else {
+            muteRow.setVisibility(View.GONE);
         }
-        String nickName = p.getString("nickName");
-        if (nickName != null && !nickName.isEmpty()) {
-            nick.setText(nickName);
-            title.setText(nickName);
+        updateKickVisibility(!targetSelf);
+    }
+
+    /** 踢出按钮：群主/管理员 看【普通成员】才显示；群主本人不显示 */
+    private void updateKickVisibility(boolean notSelf) {
+        boolean canKick = notSelf && targetRole == 3 && (viewerIsOwner || selfIsAdmin);
+        kickBtn.setVisibility(canKick ? View.VISIBLE : View.GONE);
+    }
+
+    private void confirmKick() {
+        String memberId = Member.stripZimPrefix(memberUserId);
+        if (memberId.isEmpty()) return;
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("踢出社群")
+            .setMessage("确定将该成员移出社群？")
+            .setPositiveButton("确定", (d, w) -> doKick(memberId))
+            .setNegativeButton("取消", null)
+            .show();
+    }
+
+    private void doKick(String memberId) {
+        try {
+            JSONObject body = new JSONObject();
+            body.put("groupId", groupId);
+            com.alibaba.fastjson.JSONArray ids = new com.alibaba.fastjson.JSONArray();
+            ids.add(memberId);
+            body.put("userIds", ids);
+            RedPacketApi.post(TestModule.getBusinessBaseUrl() + "/social/group/member/remove",
+                TestModule.getBusinessToken(), body, new RedPacketApi.Callback() {
+                    @Override
+                    public void onSuccess(JSONObject result) {
+                        runOnUiThread(() -> {
+                            Toast.makeText(MemberInfoActivity.this, "已踢出社群", Toast.LENGTH_SHORT).show();
+                            finish();
+                        });
+                    }
+
+                    @Override
+                    public void onError(int code, String message) {
+                        runOnUiThread(() -> Toast.makeText(MemberInfoActivity.this,
+                            "操作失败：" + (message == null ? ("错误码 " + code) : message),
+                            Toast.LENGTH_SHORT).show());
+                    }
+                });
+        } catch (Exception e) {
+            Toast.makeText(this, "操作失败：" + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
+    }
+
+    /** 他的店铺 → uniapp 店铺首页 */
+    private void openStore() {
+        if (storeId == null || storeId.isEmpty()) {
+            Toast.makeText(this, "该成员暂无店铺", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        JSONObject data = new JSONObject();
+        data.put("storeId", storeId);
+        TestModule.emitGlobalEvent("OPEN_MEMBER_STORE", data);
     }
 
     private void applyMute(boolean mute) {

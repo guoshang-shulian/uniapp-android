@@ -11,7 +11,7 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/color_eff0f2"
+    android:background="#F7F7F8"
     tools:context=".components.group.ui.ZIMKitGroupMembersActivity">
 
     <com.zegocloud.zimkit.common.components.widget.TitleBar
@@ -32,13 +32,19 @@
       app:layout_constraintEnd_toEndOf="parent"
       app:layout_constraintTop_toTopOf="parent" />
 
+    <!-- 成员列表：白色圆角卡片 -->
     <androidx.recyclerview.widget.RecyclerView
       android:id="@+id/recyclerview"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
       android:layout_below="@+id/title"
-      android:layout_marginTop="1dp"
-      android:background="@color/white"
+      android:layout_marginStart="12dp"
+      android:layout_marginTop="12dp"
+      android:layout_marginEnd="12dp"
+      android:background="@drawable/zimkit_shape_12dp_white"
+      android:clipToPadding="false"
+      android:paddingTop="4dp"
+      android:paddingBottom="4dp"
       app:layout_constraintBottom_toBottomOf="parent"
       app:layout_constraintTop_toBottomOf="@id/title" />
   </RelativeLayout>

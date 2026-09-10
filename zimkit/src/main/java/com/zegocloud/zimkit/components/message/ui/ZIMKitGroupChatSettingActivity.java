@@ -205,6 +205,22 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
                         if (divider1 != null) {
                             divider1.setVisibility(View.GONE);
                         }
+                        // 社群频道：禁止展示「群二维码」（社群二维码在管理页，群ID在社群资料）
+                        View qrRowHide = binding.getRoot().findViewById(R.id.group_qr_row);
+                        if (qrRowHide != null) {
+                            qrRowHide.setVisibility(View.GONE);
+                        }
+                        View qrDivHide = binding.getRoot().findViewById(R.id.chat_setting_divider_qr);
+                        if (qrDivHide != null) {
+                            qrDivHide.setVisibility(View.GONE);
+                        }
+                        // 社群频道同样允许：置顶 + 免打扰（按用户设置）
+                        binding.pinChat.setVisibility(View.VISIBLE);
+                        binding.doNotDisturb.setVisibility(View.VISIBLE);
+                        View divider2c = binding.getRoot().findViewById(R.id.chat_setting_divider2);
+                        if (divider2c != null) {
+                            divider2c.setVisibility(View.VISIBLE);
+                        }
                     });
                 }
             });
@@ -266,7 +282,8 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
                         if (nn.isEmpty()) {
                             return;
                         }
-                        ZIMKitCore.getInstance().zim().updateGroupName(mId, nn, (gid, newName, err) -> {
+                        // ZIM 签名：updateGroupName(groupName, groupID, cb)
+                        ZIMKitCore.getInstance().zim().updateGroupName(nn, mId, (gid, newName, err) -> {
                             if (err != null && err.code == ZIMErrorCode.SUCCESS) {
                                 TextView groupNameValue = findViewById(R.id.group_name_value);
                                 if (groupNameValue != null) {
@@ -282,6 +299,32 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
                     .setNegativeButton("取消", null)
                     .show();
             });
+        }
+
+        // 群二维码：点击 → 桥回 uniapp 打开群二维码页（二维码 + 群ID + 复制）
+        View groupQrRow = binding.getRoot().findViewById(R.id.group_qr_row);
+        if (groupQrRow != null) {
+            groupQrRow.setOnClickListener(v -> {
+                String nameNow = "";
+                TextView nameValue = findViewById(R.id.group_name_value);
+                if (nameValue != null) {
+                    nameNow = String.valueOf(nameValue.getText());
+                }
+                if (com.zegocloud.zimkit.services.internal.GroupSettingBridge.getListener() != null) {
+                    com.zegocloud.zimkit.services.internal.GroupSettingBridge.getListener()
+                        .onQrcode(mId, nameNow);
+                }
+            });
+        }
+        // 隐藏原有内嵌二维码区（改由「群二维码」栏进入专页）
+        View oldQr = binding.getRoot().findViewById(R.id.qr_code_container);
+        if (oldQr != null) {
+            oldQr.setVisibility(View.GONE);
+        }
+        // 群ID + 复制：统一移到「群二维码」页展示（设置页不再显示）
+        View idRow = binding.getRoot().findViewById(R.id.group_info_layout);
+        if (idRow != null) {
+            idRow.setVisibility(View.GONE);
         }
 
         // 退出群聊：群主 → 转让（管理员→最早加入→随机）再退出；普通成员直接退出

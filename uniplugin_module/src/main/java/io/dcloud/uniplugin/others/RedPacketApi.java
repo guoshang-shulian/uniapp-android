@@ -65,24 +65,23 @@ public class RedPacketApi {
             if (!first) {
                 sb.append("&");
             }
-            sb.append(key).append("=").append(query.getString(key));
+            sb.append(key).append("=").append(encode(query.getString(key)));
             first = false;
         }
-        request(buildRequest(sb.toString(), token, null, true), callback);
+        request(buildRequest(sb.toString(), token, null, true), sb.toString(), null, true, callback, 0);
     }
 
     public static void post(String url, String token, JSONObject body, Callback callback) {
-        String signed = signedUrl(url, token);
-        Request.Builder builder = new Request.Builder()
-            .url(signed)
-            .addHeader("accessToken", token == null ? "" : token)
-            .addHeader("Authorization", "Bearer " + (token == null ? "" : token))
-            .addHeader("uuid", randomUuid());
-        if (body == null) {
-            body = new JSONObject();
+        JSONObject safeBody = body == null ? new JSONObject() : body;
+        request(buildRequest(url, token, safeBody, false), url, safeBody, false, callback, 0);
+    }
+
+    private static String encode(String value) {
+        try {
+            return java.net.URLEncoder.encode(value == null ? "" : value, "UTF-8");
+        } catch (Exception e) {
+            return value == null ? "" : value;
         }
-        builder.post(RequestBody.create(body.toJSONString(), JSON_MEDIA_TYPE));
-        request(builder.build(), callback);
     }
 
     private static Request buildRequest(String url, String token, JSONObject body, boolean isGet) {
@@ -104,10 +103,13 @@ public class RedPacketApi {
         long timestamp = System.currentTimeMillis() / 1000;
         String nonce = randomNonce(6);
         String sign = md5(nonce + timestamp + (token == null ? "" : token));
-        return url + "?nonce=" + nonce + "&timestamp=" + timestamp + "&sign=" + sign;
+        // 已有 query 时用 & 连接（否则最后一个参数值会被拼上 "?nonce=..." 造成脏数据）
+        String sep = url.contains("?") ? "&" : "?";
+        return url + sep + "nonce=" + nonce + "&timestamp=" + timestamp + "&sign=" + sign;
     }
 
-    private static void request(Request request, Callback callback) {
+    private static void request(final Request request, final String unsignedUrl, final JSONObject body,
+        final boolean isGet, final Callback callback, final int attempt) {
         CLIENT.newCall(request).enqueue(new okhttp3.Callback() {
             @Override
             public void onFailure(okhttp3.Call call, IOException e) {
@@ -122,17 +124,28 @@ public class RedPacketApi {
             @Override
             public void onResponse(okhttp3.Call call, Response response) throws IOException {
                 try (Response res = response) {
-                    String body = res.body() == null ? "" : res.body().string();
-                    String brief = body.length() > 300 ? body.substring(0, 300) : body;
+                    String respBody = res.body() == null ? "" : res.body().string();
+                    String brief = respBody.length() > 300 ? respBody.substring(0, 300) : respBody;
                     System.out.println("[RedPacketApi] HTTP " + res.code()
                         + " url=" + call.request().url()
                         + " tokenLen=" + io.dcloud.uniplugin.TestModule.getBusinessToken().length()
                         + " body=" + brief);
+                    // 401/403：多为 token 过期/未同步 → 通知 uniapp 刷新 token 后自动重试一次
+                    if ((res.code() == 401 || res.code() == 403) && attempt == 0) {
+                        io.dcloud.uniplugin.TestModule.requestBusinessConfigRefresh();
+                        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                            System.out.println("[RedPacketApi] retry after token refresh, url=" + unsignedUrl);
+                            Request retry = buildRequest(unsignedUrl,
+                                io.dcloud.uniplugin.TestModule.getBusinessToken(), body, isGet);
+                            request(retry, unsignedUrl, body, isGet, callback, 1);
+                        }, 800);
+                        return;
+                    }
                     if (callback == null) {
                         return;
                     }
                     try {
-                        JSONObject json = JSON.parseObject(body);
+                        JSONObject json = JSON.parseObject(respBody);
                         if (json != null && Boolean.TRUE.equals(json.getBoolean("success"))) {
                             callback.onSuccess(json.getJSONObject("result"));
                         } else {
@@ -146,7 +159,7 @@ public class RedPacketApi {
                             callback.onError(res.code(), msg);
                         }
                     } catch (Exception parseError) {
-                        callback.onError(res.code(), "响应解析失败: " + body);
+                        callback.onError(res.code(), "响应解析失败: " + respBody);
                     }
                 }
             }

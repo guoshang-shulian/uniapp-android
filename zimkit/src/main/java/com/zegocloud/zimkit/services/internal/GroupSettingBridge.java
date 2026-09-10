@@ -9,6 +9,8 @@ public class GroupSettingBridge {
         void onKick(String groupId);
         void onExit(String groupId);
         void onMemberClick(String groupId, String memberUserId);
+        /** 群二维码：点击群设置里的「群二维码」栏（带当前群名，便于秒显） */
+        void onQrcode(String groupId, String groupName);
     }
 
     private static Listener sListener;

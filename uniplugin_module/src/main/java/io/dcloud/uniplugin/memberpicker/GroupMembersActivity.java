@@ -82,8 +82,10 @@ public class GroupMembersActivity extends Activity {
 
             @Override
             public void onMemberClicked(Member member) {
-                TestModule.deliverGroupMemberClick(member.memberId);
-                finish();
+                // 群成员列表：点击成员 → 直接打开「社群成员资料」原生页（不再回调 uniapp/关闭页面）
+                if (member != null) {
+                    TestModule.openMemberProfile(groupId, member.memberId);
+                }
             }
         });
 

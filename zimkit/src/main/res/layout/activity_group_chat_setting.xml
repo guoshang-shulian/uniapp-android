@@ -122,6 +122,39 @@
         android:layout_marginStart="16dp"
         android:background="@color/color_e6e6e6" />
 
+      <!-- 群二维码（点击 → 群二维码页：二维码 + 群ID + 复制） -->
+      <LinearLayout
+        android:id="@+id/group_qr_row"
+        android:layout_width="match_parent"
+        android:layout_height="54dp"
+        android:background="?selectableItemBackground"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="15dp"
+        android:paddingEnd="9dp">
+
+        <TextView
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_weight="1"
+          android:text="群二维码"
+          android:textColor="@color/color_2a2a2a"
+          android:textSize="15sp" />
+
+        <ImageView
+          android:layout_width="16dp"
+          android:layout_height="16dp"
+          android:src="@drawable/zimkit_icon_group_item_next"
+          android:contentDescription="群二维码" />
+      </LinearLayout>
+
+      <View
+        android:id="@+id/chat_setting_divider_qr"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginStart="16dp"
+        android:background="@color/color_e6e6e6" />
+
       <com.zegocloud.zimkit.components.message.ui.AsynchronousSwitch
         android:id="@+id/do_not_disturb"
         android:layout_width="match_parent"

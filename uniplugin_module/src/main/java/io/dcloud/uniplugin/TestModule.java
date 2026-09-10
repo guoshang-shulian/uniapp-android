@@ -645,7 +645,7 @@ public class TestModule extends UniModule {
                     if (error != null && error.code == ZIMErrorCode.SUCCESS && info != null) {
                         String cur = info.getName();
                         if (cur != null && "群聊".equals(cur)) {
-                            zimInstance().updateGroupName(gid, displayName, (g, n, e2) -> {
+                            zimInstance().updateGroupName(displayName, gid, (g, n, e2) -> {
                             });
                         }
                     }
@@ -1175,6 +1175,152 @@ public class TestModule extends UniModule {
         });
     }
 
+    /** 分享卡片到指定会话（通用：community_invite/product/store/article） */
+    @UniJSMethod(uiThread = true)
+    public void sendShareCard(String conversationId, String conversationType, int subType,
+        String payloadJson, UniJSCallback callback) {
+        try {
+            ZIMConversationType type = "peer".equals(conversationType)
+                ? ZIMConversationType.PEER : ZIMConversationType.GROUP;
+            ZIMKit.sendCustomMessage(payloadJson == null ? "" : payloadJson, subType,
+                conversationId, type, new MessageSentCallback() {
+                    @Override
+                    public void onMessageSent(ZIMError errorInfo) {
+                        JSONObject result = new JSONObject();
+                        result.put("success", errorInfo != null && errorInfo.code == ZIMErrorCode.SUCCESS);
+                        result.put("message", errorInfo == null ? "" : errorInfo.message);
+                        if (callback != null) {
+                            callback.invoke(result);
+                        }
+                    }
+                });
+        } catch (Exception e) {
+            invokeFail(callback, e);
+        }
+    }
+
+    /** 邀请加入社群：2人群聊（严格复用）内自动发送社群邀请卡片 */
+    @UniJSMethod(uiThread = true)
+    public void inviteCommunityMember(String peerZimId, String cardJson, UniJSCallback callback) {
+        try {
+            final String peer = peerZimId == null ? "" : peerZimId;
+            final String card = cardJson == null ? "" : cardJson;
+            final String self = ZIMKitCore.getInstance().getLocalUser().getId();
+            if (peer.isEmpty() || self == null || self.isEmpty()) {
+                invokeFail(callback, new Exception("peer/self empty"));
+                return;
+            }
+            zimInstance().queryGroupList((groups, error) -> {
+                final List<String> gids = new ArrayList<>();
+                if (groups != null) {
+                    for (im.zego.zim.entity.ZIMGroup g : groups) {
+                        if (g != null && g.baseInfo != null && g.baseInfo.groupID != null) {
+                            gids.add(g.baseInfo.groupID);
+                        }
+                    }
+                }
+                findTwoPersonGroupForInvite(gids, 0, peer, self, card,
+                    com.zegocloud.zimkit.services.model.ZIMKitMessageSubType.COMMUNITY_INVITE, callback);
+            });
+        } catch (Exception e) {
+            invokeFail(callback, e);
+        }
+    }
+
+    /** 分享卡片到指定好友：2人群聊（严格复用）内发送（通用：product/store/article/community_invite） */
+    @UniJSMethod(uiThread = true)
+    public void sendToMemberCard(String peerZimId, int subType, String cardJson, UniJSCallback callback) {
+        try {
+            final String peer = peerZimId == null ? "" : peerZimId;
+            final String card = cardJson == null ? "" : cardJson;
+            final String self = ZIMKitCore.getInstance().getLocalUser().getId();
+            if (peer.isEmpty() || self == null || self.isEmpty()) {
+                invokeFail(callback, new Exception("peer/self empty"));
+                return;
+            }
+            zimInstance().queryGroupList((groups, error) -> {
+                final List<String> gids = new ArrayList<>();
+                if (groups != null) {
+                    for (im.zego.zim.entity.ZIMGroup g : groups) {
+                        if (g != null && g.baseInfo != null && g.baseInfo.groupID != null) {
+                            gids.add(g.baseInfo.groupID);
+                        }
+                    }
+                }
+                findTwoPersonGroupForInvite(gids, 0, peer, self, card, subType, callback);
+            });
+        } catch (Exception e) {
+            invokeFail(callback, e);
+        }
+    }
+
+    private void findTwoPersonGroupForInvite(final List<String> gids, final int index,
+        final String peer, final String self, final String cardJson, final int subType,
+        final UniJSCallback callback) {
+        if (index >= gids.size()) {
+            // 无“仅我+对方”2人群 → 新建（群名=群聊，bizType=temp）
+            String newGid = "g_" + System.currentTimeMillis() + "_" + (int) (Math.random() * 99999);
+            ZIMKit.createGroup("群聊", newGid, new ArrayList<String>() {{ add(peer); }},
+                new CreateGroupCallback() {
+                    @Override
+                    public void onCreateGroup(ZIMKitGroupInfo groupInfo, ArrayList<ZIMErrorUserInfo> inviteUserErrors,
+                        ZIMError error) {
+                        if (error != null && error.code == ZIMErrorCode.SUCCESS) {
+                            markGroupBizType(newGid, "temp");
+                            sendInviteCard(newGid, cardJson, subType, callback);
+                        } else {
+                            JSONObject result = new JSONObject();
+                            result.put("success", false);
+                            result.put("message", error == null ? "创建失败" : error.message);
+                            if (callback != null) {
+                                callback.invoke(result);
+                            }
+                        }
+                    }
+                });
+            return;
+        }
+        final String gid = gids.get(index);
+        ZIMGroupMemberQueryConfig config = new ZIMGroupMemberQueryConfig();
+        config.count = 100;
+        config.nextFlag = 0;
+        zimInstance().queryGroupMemberList(gid, config, new ZIMGroupMemberListQueriedCallback() {
+            @Override
+            public void onGroupMemberListQueried(String groupId, ArrayList<ZIMGroupMemberInfo> memberList,
+                int flag, ZIMError errorInfo) {
+                if (errorInfo != null && errorInfo.code == ZIMErrorCode.SUCCESS && memberList != null
+                    && memberList.size() == 2 && containsUser(memberList, self) && containsUser(memberList, peer)) {
+                    zimInstance().queryGroupAllAttributes(gid, (g, attrs, e) -> {
+                        boolean isCommunity = attrs != null && "community".equals(attrs.get("bizType"));
+                        if (isCommunity) {
+                            findTwoPersonGroupForInvite(gids, index + 1, peer, self, cardJson, subType, callback);
+                        } else {
+                            markGroupBizType(gid, "temp");
+                            sendInviteCard(gid, cardJson, subType, callback);
+                        }
+                    });
+                } else {
+                    findTwoPersonGroupForInvite(gids, index + 1, peer, self, cardJson, subType, callback);
+                }
+            }
+        });
+    }
+
+    private void sendInviteCard(String gid, String cardJson, int subType, UniJSCallback callback) {
+        ZIMKit.sendCustomMessage(cardJson, subType,
+            gid, ZIMConversationType.GROUP, new MessageSentCallback() {
+                @Override
+                public void onMessageSent(ZIMError errorInfo) {
+                    JSONObject result = new JSONObject();
+                    result.put("success", errorInfo != null && errorInfo.code == ZIMErrorCode.SUCCESS);
+                    result.put("message", errorInfo == null ? "" : errorInfo.message);
+                    if (callback != null) {
+                        callback.invoke(result);
+                    }
+                }
+            });
+    }
+
     /** 给群打业务类型标记（ZIM 群属性，存 ZIM 服务器：卸载/换机不丢）bizType=community|temp */
     @UniJSMethod(uiThread = true)
     public void setGroupType(String groupId, String bizType, UniJSCallback callback) {
@@ -1373,9 +1519,25 @@ public class TestModule extends UniModule {
         //neteaseLogin();
     }
 
+    /** 跨 Activity 向 uniapp 派发全局事件（静态入口） */
+    private static UniJSCallback sGlobalJsCallback;
+
+    public static void emitGlobalEvent(String event, JSONObject data) {
+        try {
+            if (sGlobalJsCallback != null) {
+                JSONObject payload = new JSONObject();
+                payload.put("event", event);
+                payload.put("data", data == null ? new JSONObject() : data);
+                sGlobalJsCallback.invokeAndKeepAlive(payload);
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
     @UniJSMethod(uiThread = false)
     public void startSyncPipeline(UniJSCallback callback) {
         globalJsCallback = callback;
+        sGlobalJsCallback = callback;
 //        neteaseLogin();
         System.out.println("SaaS Data Engine: Sync Pipeline Activated.");
         stopSyncPipeline();
@@ -1413,6 +1575,16 @@ public class TestModule extends UniModule {
                 com.alibaba.fastjson.JSONArray uniArray = com.alibaba.fastjson.JSON.parseArray(
                         new com.google.gson.Gson().toJson(conversationList)
                 );
+                // 补 muted 标记（免打扰）供列表显示铃铛划线
+                try {
+                    for (int i = 0; i < uniArray.size() && i < conversationList.size(); i++) {
+                        JSONObject o = uniArray.getJSONObject(i);
+                        im.zego.zim.entity.ZIMConversation c = conversationList.get(i);
+                        o.put("muted", c != null && c.notificationStatus
+                            == im.zego.zim.enums.ZIMConversationNotificationStatus.DO_NOT_DISTURB);
+                    }
+                } catch (Exception ignored) {
+                }
                 JSONObject payload = new JSONObject();
                 System.out.println(uniArray);
                 System.out.println("list is above");
@@ -1620,6 +1792,7 @@ public class TestModule extends UniModule {
 
     @UniJSMethod(uiThread = true)
     public void setBusinessConfig(String baseUrl, String token, String userId, String userName, String avatarUrl) {
+        cacheContext(safeContext());
         if (baseUrl != null && !baseUrl.isEmpty()) {
             businessBaseUrl = baseUrl;
         }
@@ -1652,6 +1825,11 @@ public class TestModule extends UniModule {
         return localUserAvatar;
     }
 
+    /** 请求 uniapp 重新下发 businessToken（原生接口 401/403 时自动触发，刷新后自动重试一次） */
+    public static void requestBusinessConfigRefresh() {
+        emitGlobalEvent("REFRESH_BUSINESS_TOKEN", new JSONObject());
+    }
+
     @UniJSMethod(uiThread = true)
     public void registerCardEventCallback(UniJSCallback callback) {
         cardJsCallback = callback;
@@ -1665,6 +1843,7 @@ public class TestModule extends UniModule {
     /** 私聊群自动升级：bizType=private 的群拉人后 → temp（群聊） */
     @UniJSMethod(uiThread = true)
     public void registerGroupBizTypeBridge(UniJSCallback callback) {
+        cacheContext(safeContext());
         io.dcloud.uniplugin.groupbridge.GroupBizTypeBridge.register();
         // 群设置页（ZIMKit 原生）动作桥：邀请/踢出/退出
         com.zegocloud.zimkit.services.internal.GroupSettingBridge.setListener(
@@ -1744,13 +1923,110 @@ public class TestModule extends UniModule {
                 public void onMemberClick(String groupId, String memberUserId) {
                     openMemberInfoInternal(groupId, memberUserId);
                 }
+
+                @Override
+                public void onQrcode(String groupId, String groupName) {
+                    // 群设置「群二维码」栏 → 原生群二维码页（与 uniapp 页面同款样式）
+                    try {
+                        Context ctx = safeContext();
+                        if (ctx == null) {
+                            android.util.Log.w("GroupQrcode", "open failed: context null");
+                            return;
+                        }
+                        io.dcloud.uniplugin.activity.GroupQrcodeActivity.start(ctx, groupId, groupName);
+                    } catch (Exception e) {
+                        android.util.Log.e("GroupQrcode", "open fail: " + e.getMessage());
+                    }
+                }
             });
         registerKickCleanupListener();
+        // 社群邀请卡片：确认 → 直接申请/加入（不跳 uniapp 页面）
+        com.zegocloud.zimkit.services.internal.CommunityInviteBridge.setListener(
+            (groupId, cb) -> applyCommunityInvite(groupId, cb));
         if (callback != null) {
             JSONObject result = new JSONObject();
             result.put("success", true);
             callback.invoke(result);
         }
+    }
+
+    /** 社群邀请确认：直接走 ZIM 申请/直接加入（免审核时补后端成员同步） */
+    private static void applyCommunityInvite(final String groupId,
+        final com.zegocloud.zimkit.services.internal.CommunityInviteBridge.Callback cb) {
+        try {
+            im.zego.zim.entity.ZIMGroupJoinApplicationSendConfig cfg =
+                new im.zego.zim.entity.ZIMGroupJoinApplicationSendConfig();
+            cfg.wording = "";
+            zimInstance().sendGroupJoinApplication(groupId, cfg,
+                new im.zego.zim.callback.ZIMGroupJoinApplicationSentCallback() {
+                    @Override
+                    public void onGroupJoinApplicationSent(String gid, ZIMError e) {
+                        if (e != null && e.code == ZIMErrorCode.SUCCESS) {
+                            // 申请成功：判断是否已直接入群（ANY 群）→ 已入群=成功，否则=待审核
+                            checkJoinedThenReply(groupId, cb);
+                            return;
+                        }
+                        String msg = e == null ? "" : e.message;
+                        if (msg != null && (msg.contains("108037") || msg.toLowerCase().contains("belong"))) {
+                            reply(cb, true, "已加入");
+                            return;
+                        }
+                        reply(cb, false, msg == null || msg.isEmpty() ? "申请失败" : msg);
+                    }
+                });
+        } catch (Exception e) {
+            reply(cb, false, "申请失败：" + e.getMessage());
+        }
+    }
+
+    private static void checkJoinedThenReply(final String groupId,
+        final com.zegocloud.zimkit.services.internal.CommunityInviteBridge.Callback cb) {
+        zimInstance().queryGroupInfo(groupId, (info, e) -> {
+            boolean joined = e != null && e.code == ZIMErrorCode.SUCCESS;
+            if (joined) {
+                // 免审核直接进：补后端业务成员同步（后端据此发「我加入了社群」）
+                syncGroupMemberToBackend(groupId);
+                reply(cb, true, "已加入");
+            } else {
+                reply(cb, false, "已提交申请");
+            }
+        });
+    }
+
+    /** 免审核加入后：POST /social/group/member/sync { groupId, userIds:[myMemberId] } */
+    private static void syncGroupMemberToBackend(String groupId) {
+        try {
+            String memberId = io.dcloud.uniplugin.memberpicker.Member.stripZimPrefix(
+                getLocalUserId());
+            if (memberId == null || memberId.isEmpty()) {
+                return;
+            }
+            JSONObject body = new JSONObject();
+            body.put("groupId", groupId);
+            com.alibaba.fastjson.JSONArray ids = new com.alibaba.fastjson.JSONArray();
+            ids.add(memberId);
+            body.put("userIds", ids);
+            io.dcloud.uniplugin.others.RedPacketApi.post(
+                getBusinessBaseUrl() + "/social/group/member/sync", getBusinessToken(), body,
+                new io.dcloud.uniplugin.others.RedPacketApi.Callback() {
+                    @Override
+                    public void onSuccess(JSONObject result) {
+                    }
+
+                    @Override
+                    public void onError(int code, String message) {
+                    }
+                });
+        } catch (Exception ignored) {
+        }
+    }
+
+    private static void reply(com.zegocloud.zimkit.services.internal.CommunityInviteBridge.Callback cb,
+        boolean joined, String message) {
+        if (cb == null) {
+            return;
+        }
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> cb.onResult(joined, message));
     }
 
     /** 被踢出群：立即删除本地会话（列表不再显示该群） */
@@ -2209,6 +2485,24 @@ public class TestModule extends UniModule {
         }
     }
 
+    /** 打开社群成员资料页（任意原生页面可调用：使用缓存的上下文） */
+    public static void openMemberProfile(String groupId, String memberUserId) {
+        if (groupId == null || groupId.isEmpty() || memberUserId == null || memberUserId.isEmpty()) {
+            android.util.Log.w("MemberInfo", "open skipped: groupId=" + groupId + " memberId=" + memberUserId);
+            return;
+        }
+        try {
+            Context ctx = sAppContext;
+            if (ctx == null) {
+                android.util.Log.w("MemberInfo", "open failed: context null");
+                return;
+            }
+            MemberInfoActivity.start(ctx, groupId, toZimUserId(memberUserId));
+        } catch (Exception e) {
+            android.util.Log.e("MemberInfo", "open member profile fail: " + e.getMessage());
+        }
+    }
+
     /** 打开群成员信息页（图3/图4：群主看用户 / 用户看群主） */
     @UniJSMethod(uiThread = true)
     public void openMemberInfo(String groupId, String memberUserId, UniJSCallback callback) {
@@ -2226,9 +2520,39 @@ public class TestModule extends UniModule {
 
     private void openMemberInfoInternal(String groupId, String memberUserId) {
         if (groupId == null || groupId.isEmpty() || memberUserId == null || memberUserId.isEmpty()) {
+            android.util.Log.w("MemberInfo", "open skipped: groupId=" + groupId + " memberId=" + memberUserId);
             return;
         }
-        MemberInfoActivity.start(mUniSDKInstance.getContext(), groupId, memberUserId);
+        try {
+            Context ctx = safeContext();
+            if (ctx == null) {
+                android.util.Log.w("MemberInfo", "open failed: context null");
+                return;
+            }
+            MemberInfoActivity.start(ctx, groupId, memberUserId);
+        } catch (Exception e) {
+            android.util.Log.e("MemberInfo", "open member info fail: " + e.getMessage());
+        }
+    }
+
+    /** 安全上下文：优先 uniapp 实例上下文，兜底启动时缓存的 Application/Activity 上下文 */
+    private static Context sAppContext;
+
+    public static void cacheContext(Context context) {
+        if (context != null) {
+            sAppContext = context;
+        }
+    }
+
+    private Context safeContext() {
+        try {
+            if (mUniSDKInstance != null && mUniSDKInstance.getContext() != null) {
+                sAppContext = mUniSDKInstance.getContext();
+                return sAppContext;
+            }
+        } catch (Exception ignored) {
+        }
+        return sAppContext;
     }
 
     /** 申请加入社群频道群（ZIM 原生申请；需要验证的群走审核） */
@@ -2619,6 +2943,8 @@ public class TestModule extends UniModule {
                         o.put("conversationType", c.type == ZIMConversationType.GROUP ? "group" : "peer");
                         o.put("orderKey", c.orderKey);
                         o.put("updateTime", c.lastMessage != null ? c.lastMessage.getTimestamp() : 0L);
+                        o.put("muted", c.notificationStatus
+                            == im.zego.zim.enums.ZIMConversationNotificationStatus.DO_NOT_DISTURB);
                         o.put("unreadMessageCount", c.unreadMessageCount);
                         arr.add(o);
                     }
@@ -3211,8 +3537,15 @@ public class TestModule extends UniModule {
             if ("open_card".equals(action) && "red_packet".equals(payload.getString("cardType"))) {
                 JSONObject detail = payload.getJSONObject("detail");
                 JSONObject sender = payload.getJSONObject("sender");
-                RedPacketDetailActivity.start(mUniSDKInstance.getContext(),
-                    detail == null ? "" : detail.getString("redPacketId"),
+                String rpId = detail == null ? "" : detail.getString("redPacketId");
+                // 容错：历史卡片里可能被拼上 "?nonce=..."（签名串），截断取纯 ID
+                if (rpId != null && rpId.contains("?")) {
+                    rpId = rpId.substring(0, rpId.indexOf('?'));
+                }
+                // 红包卡片：点击只做「领取」（错误/结果走弹窗，暂不打开领取记录页）
+                io.dcloud.uniplugin.activity.RedPacketClaimAction.claim(
+                    safeContext(),
+                    rpId,
                     payload.getString("conversationId"),
                     payload.getString("conversationType"),
                     sender == null ? "" : sender.getString("userId"),

@@ -50,6 +50,11 @@ public class CardMessageHolder extends MessageViewHolder {
         }
         applyCardStyle(card.cardSubType);
         fillCard(card);
+        // 社群邀请卡：先弹确认框，确认后走 open_card（uniapp 加入流程）
+        if (card.cardSubType == ZIMKitMessageSubType.COMMUNITY_INVITE) {
+            root.findViewById(R.id.item_message_layout).setOnClickListener(v -> showInviteConfirm(card));
+            return;
+        }
         root.findViewById(R.id.item_message_layout).setOnClickListener(v -> {
             System.out.println("[CardBridge] card clicked, listener="
                 + (ZIMKitMessageFragment.getNativeDataListener() != null));
@@ -58,6 +63,56 @@ public class CardMessageHolder extends MessageViewHolder {
                     .onCardAction("open_card", card.payloadJson);
             }
         });
+    }
+
+    /** 社群邀请：现代弹窗确认 → 直接调接口申请/加入（不再跳转 uniapp 页面） */
+    private void showInviteConfirm(final CardMessageContent card) {
+        final String groupName = card.getNestedString("detail", "groupName");
+        final String groupLogo = card.getNestedString("detail", "groupLogo");
+        final String groupId = card.getNestedString("detail", "groupId");
+        final android.app.Dialog dialog = new android.app.Dialog(root.getContext());
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        dialog.setContentView(R.layout.zimkit_dialog_community_invite);
+        android.view.Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(
+                android.graphics.Color.TRANSPARENT));
+            window.setLayout(android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+        ((TextView) dialog.findViewById(R.id.ciGroupName)).setText(
+            TextUtils.isEmpty(groupName) ? "" : groupName);
+        ImageView logo = dialog.findViewById(R.id.ciLogo);
+        if (!TextUtils.isEmpty(groupLogo)) {
+            Glide.with(logo.getContext()).load(groupLogo).circleCrop().into(logo);
+        } else {
+            logo.setBackgroundResource(R.drawable.zimkit_shape_6dp_image_bg);
+        }
+        dialog.findViewById(R.id.ciCancel).setOnClickListener(v -> dialog.dismiss());
+        dialog.findViewById(R.id.ciConfirm).setOnClickListener(v -> {
+            dialog.dismiss();
+            applyJoinCommunity(groupId);
+        });
+        dialog.show();
+    }
+
+    /** 确认加入：桥接 uniplugin 执行「申请/直接加入」 */
+    private void applyJoinCommunity(String groupId) {
+        if (TextUtils.isEmpty(groupId)) {
+            android.widget.Toast.makeText(root.getContext(), "社群信息缺失", android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+        com.zegocloud.zimkit.services.internal.CommunityInviteBridge.Listener listener =
+            com.zegocloud.zimkit.services.internal.CommunityInviteBridge.getListener();
+        if (listener == null) {
+            android.widget.Toast.makeText(root.getContext(), "功能未就绪", android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+        listener.applyJoin(groupId, (joined, message) -> root.post(() ->
+            android.widget.Toast.makeText(root.getContext(),
+                message == null || message.isEmpty() ? (joined ? "已加入" : "已提交申请")
+                    : message,
+                android.widget.Toast.LENGTH_SHORT).show()));
     }
 
     /** 按卡片类型切换卡片底色（微信式白卡 / 红包红渐变卡）与文字配色 */
@@ -113,6 +168,9 @@ public class CardMessageHolder extends MessageViewHolder {
                 break;
             case ZIMKitMessageSubType.ARTICLE_CARD:
                 bindArticle(card, title, subtitle, desc, footer, status, icon);
+                break;
+            case ZIMKitMessageSubType.COMMUNITY_INVITE:
+                bindCommunityInvite(card, title, subtitle, desc, footer, status, icon);
                 break;
             default:
                 title.setText(card.getSummary());
@@ -240,6 +298,22 @@ public class CardMessageHolder extends MessageViewHolder {
         icon.setScaleType(ImageView.ScaleType.CENTER_CROP);
         syncIconSize(icon, dp(56));
         loadImage(icon, card.getNestedString("detail", "cover"));
+    }
+
+    /** 社群邀请卡：logo + 邀请您加入社群 + 社群名 + 居中“申请加入” */
+    private void bindCommunityInvite(CardMessageContent card, TextView title, TextView subtitle, TextView desc,
+        TextView footer, TextView status, ImageView icon) {
+        title.setText("邀请您加入社群");
+        subtitle.setText(card.getNestedString("detail", "groupName"));
+        desc.setVisibility(View.GONE);
+        footer.setText("申请加入");
+        footer.setTextColor(0xFF9079F9);
+        footer.setVisibility(View.VISIBLE);
+        status.setVisibility(View.GONE);
+        icon.setBackgroundResource(R.drawable.zimkit_shape_6dp_image_bg);
+        icon.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        syncIconSize(icon, dp(48));
+        loadImage(icon, card.getNestedString("detail", "groupLogo"));
     }
 
     private void syncIconSize(ImageView icon, int size) {

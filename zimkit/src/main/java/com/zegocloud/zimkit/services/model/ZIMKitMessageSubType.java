@@ -29,6 +29,9 @@ public final class ZIMKitMessageSubType {
     /** 功能模块卡（预留，本期不实现） */
     public static final int FUNCTION_MODULE = 6;
 
+    /** 社群邀请卡（2人群聊内：邀请您加入社群） */
+    public static final int COMMUNITY_INVITE = 7;
+
     public static String typeName(int subType) {
         switch (subType) {
             case PRODUCT_CARD:
@@ -43,6 +46,8 @@ public final class ZIMKitMessageSubType {
                 return "red_packet_sync";
             case FUNCTION_MODULE:
                 return "function_module";
+            case COMMUNITY_INVITE:
+                return "community_invite";
             default:
                 return "text";
         }

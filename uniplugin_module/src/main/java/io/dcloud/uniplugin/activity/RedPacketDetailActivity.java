@@ -92,6 +92,10 @@ public class RedPacketDetailActivity extends android.app.Activity {
         senderName = getIntent().getStringExtra("senderName");
         senderAvatar = getIntent().getStringExtra("senderAvatar");
         if (redPacketId == null) redPacketId = "";
+        // 容错：历史数据可能带 "?nonce=..."（签名串）→ 取纯 ID
+        if (redPacketId.contains("?")) {
+            redPacketId = redPacketId.substring(0, redPacketId.indexOf('?'));
+        }
         if (conversationId == null) conversationId = "";
         if (conversationType == null || conversationType.isEmpty()) conversationType = "group";
         if (senderName == null || senderName.isEmpty()) senderName = "朋友";

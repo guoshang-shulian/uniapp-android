@@ -453,7 +453,8 @@ public class ZIMKitMessageAdapter extends RecyclerView.Adapter<MessageViewHolder
         return subType == ZIMKitMessageSubType.PRODUCT_CARD
             || subType == ZIMKitMessageSubType.SHOP_CARD
             || subType == ZIMKitMessageSubType.ARTICLE_CARD
-            || subType == ZIMKitMessageSubType.RED_PACKET;
+            || subType == ZIMKitMessageSubType.RED_PACKET
+            || subType == ZIMKitMessageSubType.COMMUNITY_INVITE;
     }
 
     @Override

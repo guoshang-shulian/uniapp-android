@@ -133,6 +133,9 @@ public class CardMessageContent {
         if (cardSubType == ZIMKitMessageSubType.FUNCTION_MODULE) {
             return "[功能]";
         }
+        if (cardSubType == ZIMKitMessageSubType.COMMUNITY_INVITE) {
+            return "[社群邀请]";
+        }
         return getNestedString("detail", "remark");
     }
 }
