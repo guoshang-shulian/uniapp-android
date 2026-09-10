@@ -77,7 +77,7 @@ public final class RedPacketClaimAction {
                 }
                 double points = result.getDoubleValue("points");
                 dialog(context, "领取成功", "已领取 " + String.format("%.2f", points) + " 积分");
-                sendDrawSync(conversationId, conversationType, redPacketId, result);
+                sendDrawSync(conversationId, conversationType, redPacketId, result, "", "");
             }
 
             @Override
@@ -87,9 +87,9 @@ public final class RedPacketClaimAction {
         });
     }
 
-    /** 领取成功：发一条红包状态同步消息（卡片状态刷新） */
-    private static void sendDrawSync(String conversationId, String conversationType,
-        String redPacketId, JSONObject drawResult) {
+    /** 领取成功：发一条红包状态同步消息（卡片状态刷新 + 领取提示）——弹窗/详情页共用 */
+    static void sendDrawSync(String conversationId, String conversationType,
+        String redPacketId, JSONObject drawResult, String ownerId, String ownerName) {
         try {
             JSONObject payload = new JSONObject();
             payload.put("version", 1);
@@ -106,8 +106,12 @@ public final class RedPacketClaimAction {
             JSONObject syncDetail = new JSONObject();
             syncDetail.put("redPacketId", redPacketId);
             syncDetail.put("action", "draw");
-            syncDetail.put("userId", TestModule.getLocalUserId());
+            String selfId = TestModule.getLocalUserId();
+            syncDetail.put("userId", selfId != null && selfId.startsWith("user_")
+                ? selfId : ("user_" + (selfId == null ? "" : selfId)));
             syncDetail.put("userName", TestModule.getLocalUserName());
+            syncDetail.put("packetOwnerId", ownerId == null ? "" : ownerId);
+            syncDetail.put("packetOwnerName", ownerName == null ? "" : ownerName);
             syncDetail.put("points", drawResult.getDoubleValue("points"));
             syncDetail.put("isLast", Boolean.TRUE.equals(drawResult.getBoolean("isLast")));
             syncDetail.put("remainCount", drawResult.getIntValue("remainCount"));

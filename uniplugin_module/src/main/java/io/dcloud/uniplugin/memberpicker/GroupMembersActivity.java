@@ -83,6 +83,8 @@ public class GroupMembersActivity extends Activity {
             @Override
             public void onMemberClicked(Member member) {
                 // 群成员列表：点击成员 → 直接打开「社群成员资料」原生页（不再回调 uniapp/关闭页面）
+                android.util.Log.i("MemberClick", "picker list click gid=" + groupId
+                    + " memberId=" + (member == null ? "null" : member.memberId));
                 if (member != null) {
                     TestModule.openMemberProfile(groupId, member.memberId);
                 }

@@ -96,7 +96,7 @@
 
         <LinearLayout
           android:id="@+id/item_card_layout"
-          android:layout_width="240dp"
+          android:layout_width="248dp"
           android:layout_height="wrap_content"
           android:gravity="center_vertical"
           android:orientation="horizontal"
@@ -154,6 +154,50 @@
               android:textColor="@color/color_646A73"
               android:textSize="12sp"
               tools:text="商品描述" />
+
+            <LinearLayout
+              android:id="@+id/card_chip_row"
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"
+              android:layout_marginTop="4dp"
+              android:orientation="horizontal"
+              android:visibility="gone">
+
+              <TextView
+                android:id="@+id/card_chip_1"
+                android:layout_width="wrap_content"
+                android:layout_height="21dp"
+                android:background="@drawable/zimkit_shape_chip_gray"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:textColor="#999999"
+                android:textSize="12sp"
+                tools:text="已售 140" />
+
+              <TextView
+                android:id="@+id/card_chip_2"
+                android:layout_width="wrap_content"
+                android:layout_height="21dp"
+                android:layout_marginStart="4dp"
+                android:background="@drawable/zimkit_shape_chip_gray"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:textColor="#999999"
+                android:textSize="12sp"
+                tools:text="库存 180" />
+            </LinearLayout>
+
+            <View
+              android:id="@+id/card_divider"
+              android:layout_width="match_parent"
+              android:layout_height="0.5dp"
+              android:layout_marginTop="6dp"
+              android:background="#4DFFFFFF"
+              android:visibility="gone" />
 
             <LinearLayout
               android:layout_width="match_parent"

@@ -119,10 +119,19 @@ public class ZIMKitGroupMembersActivity extends ComponentActivity {
                 int position = vh.getAdapterPosition();
                 if (position != RecyclerView.NO_POSITION) {
                     ZIMKitGroupMemberInfo member = groupMemberAdapter.getItemData(position);
-                    if (member != null && member.getId() != null
-                        && com.zegocloud.zimkit.services.internal.GroupSettingBridge.getListener() != null) {
-                        com.zegocloud.zimkit.services.internal.GroupSettingBridge.getListener()
-                            .onMemberClick(mID, member.getId());
+                    boolean hasListener =
+                        com.zegocloud.zimkit.services.internal.GroupSettingBridge.getListener() != null;
+                    android.util.Log.i("MemberClick", "members list click gid=" + mID
+                        + " uid=" + (member == null ? "null" : member.getId())
+                        + " hasListener=" + hasListener);
+                    if (member != null && member.getId() != null) {
+                        if (hasListener) {
+                            com.zegocloud.zimkit.services.internal.GroupSettingBridge.getListener()
+                                .onMemberClick(mID, member.getId());
+                        } else {
+                            android.widget.Toast.makeText(ZIMKitGroupMembersActivity.this,
+                                "成员资料功能未就绪（请重新登录）", android.widget.Toast.LENGTH_SHORT).show();
+                        }
                     }
                 }
             }

@@ -305,7 +305,7 @@ public class RedPacketDetailActivity extends android.app.Activity {
             if (time.isEmpty()) time = "";
 
             ((TextView) row.findViewById(R.id.recordName)).setText(name);
-            ((TextView) row.findViewById(R.id.recordPoints)).setText(String.format("%.2f", points));
+            ((TextView) row.findViewById(R.id.recordPoints)).setText(trimZero(points) + "积分");
             ((TextView) row.findViewById(R.id.recordTime)).setText(time);
 
             ImageView avatar = row.findViewById(R.id.recordAvatar);
@@ -449,17 +449,36 @@ public class RedPacketDetailActivity extends android.app.Activity {
         JSONObject syncDetail = new JSONObject();
         syncDetail.put("redPacketId", redPacketId);
         syncDetail.put("action", "draw");
-        syncDetail.put("userId", TestModule.getLocalUserId());
+        syncDetail.put("userId", localZimId());
         syncDetail.put("userName", TestModule.getLocalUserName());
         syncDetail.put("points", drawResult.getDoubleValue("points"));
         syncDetail.put("isLast", Boolean.TRUE.equals(drawResult.getBoolean("isLast")));
         syncDetail.put("remainCount", drawResult.getIntValue("remainCount"));
         syncDetail.put("remainPoints", drawResult.getDoubleValue("remainPoints"));
+        syncDetail.put("packetOwnerId", senderUserId == null ? "" : senderUserId);
+        syncDetail.put("packetOwnerName", senderName == null ? "" : senderName);
         payload.put("detail", syncDetail);
 
         ZIMKit.sendCustomMessage(payload.toJSONString(), 5, conversationId,
             ZIMConversationType.GROUP, error -> { /* 同步失败不阻塞 */ });
     }
+
+    private String localZimId() {
+        String id = TestModule.getLocalUserId();
+        if (id == null) {
+            return "";
+        }
+        return id.startsWith("user_") ? id : ("user_" + id);
+    }
+
+    /** 积分去零：1.00 → 1；0.50 → 0.5（与 Figma「1积分」一致） */
+    private String trimZero(double value) {
+        if (value == Math.floor(value) && !Double.isInfinite(value)) {
+            return String.valueOf((long) value);
+        }
+        return String.valueOf(value);
+    }
+
 
     private int dp(int value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="38dp"
+    android:height="45dp"
+    android:viewportWidth="76"
+    android:viewportHeight="90">
+    <!-- 红包封套主体 #D63C1E -->
+    <path
+        android:fillColor="#D63C1E"
+        android:pathData="M4,0h68a4,4 0 0 1 4,4v82a4,4 0 0 1 -4,4H4a4,4 0 0 1 -4,-4V4a4,4 0 0 1 4,-4z" />
+    <!-- 封口折页 #EE4D2C -->
+    <path
+        android:fillColor="#EE4D2C"
+        android:pathData="M4,0h68a4,4 0 0 1 4,4v35a4,4 0 0 1 -4,4H4a4,4 0 0 1 -4,-4V4a4,4 0 0 1 4,-4z" />
+    <!-- 金色圆扣 #F1D49A -->
+    <path
+        android:fillColor="#F1D49A"
+        android:pathData="M38,31m-14,0a14,14 0 1,0 28,0a14,14 0 1,0 -28,0z" />
+    <!-- ￥ 符号 #E17D34 -->
+    <path
+        android:fillColor="#E17D34"
+        android:pathData="M32,24h4l3,5 3,-5h4l-5,8h3v2h-4v2h4v2h-4v3h-3v-3h-4v-2h4v-2h-4v-2h3z" />
+</vector>

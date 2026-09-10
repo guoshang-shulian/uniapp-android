@@ -29,4 +29,13 @@
         <item name="android:windowExitAnimation">@anim/dialog_slide_out_bottom</item>
     </style>
 
+    <!-- 红包沉浸式弹窗：透明底 + 无标题 + 自带遮罩（避免用系统主题导致崩溃/黑屏） -->
+    <style name="RedPacketDialogTheme" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowContentOverlay">@null</item>
+    </style>
+
 </resources>

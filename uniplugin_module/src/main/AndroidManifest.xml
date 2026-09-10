@@ -15,6 +15,9 @@
 <activity android:name="io.dcloud.uniplugin.activity.GroupQrcodeActivity"
     android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
     android:exported="false"></activity>
+<activity android:name="io.dcloud.uniplugin.activity.RedPacketRecordsActivity"
+    android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
+    android:exported="false"></activity>
 <activity android:name="io.dcloud.uniplugin.memberpicker.MemberPickerActivity"
     android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
     android:exported="false"></activity>

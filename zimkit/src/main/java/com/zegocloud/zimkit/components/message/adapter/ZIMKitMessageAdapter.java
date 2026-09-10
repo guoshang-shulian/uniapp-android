@@ -23,6 +23,7 @@ import com.zegocloud.zimkit.components.message.ui.ZIMKitVideoViewActivity;
 import com.zegocloud.zimkit.components.message.widget.ZIMKitAudioPlayer;
 import com.zegocloud.zimkit.components.message.widget.viewholder.AudioMessageHolder;
 import com.zegocloud.zimkit.components.message.widget.viewholder.CardMessageHolder;
+import com.zegocloud.zimkit.components.message.widget.viewholder.RedPacketTipHolder;
 import com.zegocloud.zimkit.components.message.widget.viewholder.CombineMessageHolder;
 import com.zegocloud.zimkit.components.message.widget.viewholder.CustomMessageHolder;
 import com.zegocloud.zimkit.components.message.widget.viewholder.FileMessageHolder;
@@ -296,14 +297,21 @@ public class ZIMKitMessageAdapter extends RecyclerView.Adapter<MessageViewHolder
             }
             int type = (viewType % 1000);
             if (type >= CARD_VIEW_TYPE_BASE && type < CARD_VIEW_TYPE_BASE + 10) {
-                if (isSend) {
+                int subType = type - CARD_VIEW_TYPE_BASE;
+                if (subType == ZIMKitMessageSubType.RED_PACKET_SYNC) {
+                    // 红包领取提示：居中灰字 + 迷你封套（Figma 5339:6374）
+                    binding = DataBindingUtil.inflate(LayoutInflater.from(parent.getContext()),
+                        R.layout.zimkit_item_message_red_packet_tip, parent, false);
+                    viewHolder = new RedPacketTipHolder(binding);
+                } else if (isSend) {
                     binding = DataBindingUtil.inflate(LayoutInflater.from(parent.getContext()),
                         R.layout.zimkit_item_message_send_card, parent, false);
+                    viewHolder = new CardMessageHolder(binding);
                 } else {
                     binding = DataBindingUtil.inflate(LayoutInflater.from(parent.getContext()),
                         R.layout.zimkit_item_message_receive_card, parent, false);
+                    viewHolder = new CardMessageHolder(binding);
                 }
-                viewHolder = new CardMessageHolder(binding);
             } else if (type == ZIMMessageType.TIPS.value()) {
                 binding = DataBindingUtil.inflate(LayoutInflater.from(parent.getContext()),
                     R.layout.zimkit_item_message_tips, parent, false);
@@ -454,6 +462,7 @@ public class ZIMKitMessageAdapter extends RecyclerView.Adapter<MessageViewHolder
             || subType == ZIMKitMessageSubType.SHOP_CARD
             || subType == ZIMKitMessageSubType.ARTICLE_CARD
             || subType == ZIMKitMessageSubType.RED_PACKET
+            || subType == ZIMKitMessageSubType.RED_PACKET_SYNC
             || subType == ZIMKitMessageSubType.COMMUNITY_INVITE;
     }
 

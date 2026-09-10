@@ -2487,6 +2487,8 @@ public class TestModule extends UniModule {
 
     /** 打开社群成员资料页（任意原生页面可调用：使用缓存的上下文） */
     public static void openMemberProfile(String groupId, String memberUserId) {
+        android.util.Log.i("MemberClick", "openMemberProfile gid=" + groupId
+            + " memberId=" + memberUserId + " ctx=" + (sAppContext != null));
         if (groupId == null || groupId.isEmpty() || memberUserId == null || memberUserId.isEmpty()) {
             android.util.Log.w("MemberInfo", "open skipped: groupId=" + groupId + " memberId=" + memberUserId);
             return;
@@ -2519,6 +2521,8 @@ public class TestModule extends UniModule {
     }
 
     private void openMemberInfoInternal(String groupId, String memberUserId) {
+        android.util.Log.i("MemberClick", "openMemberInfoInternal gid=" + groupId
+            + " uid=" + memberUserId + " ctx=" + (sAppContext != null));
         if (groupId == null || groupId.isEmpty() || memberUserId == null || memberUserId.isEmpty()) {
             android.util.Log.w("MemberInfo", "open skipped: groupId=" + groupId + " memberId=" + memberUserId);
             return;
@@ -3542,15 +3546,28 @@ public class TestModule extends UniModule {
                 if (rpId != null && rpId.contains("?")) {
                     rpId = rpId.substring(0, rpId.indexOf('?'));
                 }
-                // 红包卡片：点击只做「领取」（错误/结果走弹窗，暂不打开领取记录页）
-                io.dcloud.uniplugin.activity.RedPacketClaimAction.claim(
-                    safeContext(),
-                    rpId,
-                    payload.getString("conversationId"),
-                    payload.getString("conversationType"),
-                    sender == null ? "" : sender.getString("userId"),
-                    sender == null ? "" : sender.getString("userName"),
-                    sender == null ? "" : sender.getString("avatarUrl"));
+                // 红包卡片：打开沉浸式弹窗（可领取/已领取/已被领完/专属 各状态）
+                try {
+                    final android.content.Context rpCtx = safeContext();
+                    final String fRpId = rpId;
+                    final String fConvId = payload.getString("conversationId");
+                    final String fConvType = payload.getString("conversationType");
+                    final String fSenderId = sender == null ? "" : sender.getString("userId");
+                    final String fSenderName = sender == null ? "" : sender.getString("userName");
+                    final String fSenderAvatar = sender == null ? "" : sender.getString("avatarUrl");
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                        try {
+                            io.dcloud.uniplugin.activity.RedPacketOpenDialog.show(rpCtx, fRpId,
+                                fConvId, fConvType, fSenderId, fSenderName, fSenderAvatar);
+                        } catch (Exception e) {
+                            android.util.Log.e("RedPacket", "open modal fail: " + e);
+                            android.widget.Toast.makeText(rpCtx,
+                                "打开红包失败：" + e.getMessage(), android.widget.Toast.LENGTH_LONG).show();
+                        }
+                    });
+                } catch (Exception e) {
+                    android.util.Log.e("RedPacket", "open modal dispatch fail: " + e);
+                }
                 return;
             }
             if (cardJsCallback == null) {
