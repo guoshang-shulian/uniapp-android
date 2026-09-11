@@ -210,10 +210,23 @@ public class MemberInfoActivity extends android.app.Activity {
             identityRow.setVisibility(View.GONE);
         }
 
-        // 他的店铺：默认“无”（后端补字段后展示）
+        // 踢出按钮：ZIM 角色已确定就立即判定（角色是权威来源，不再依赖后端 profile 是否请求成功）
+        updateKickVisibility(!targetSelf);
+
+        // 他的店铺：后端 profile 未到之前先按「无」并隐藏箭头
         storeValue.setText("无");
+        setStoreClickable(false);
         // 补充手机/地区/等级
         loadProfile(target.userID);
+    }
+
+    /** 有店铺才可点、才显示右箭头（无店铺时整行不可点，避免点了没反应） */
+    private void setStoreClickable(boolean clickable) {
+        storeRow.setClickable(clickable);
+        View arrow = findViewById(R.id.miStoreArrow);
+        if (arrow != null) {
+            arrow.setVisibility(clickable ? View.VISIBLE : View.GONE);
+        }
     }
 
     private void loadProfile(String zimUserId) {
@@ -224,7 +237,7 @@ public class MemberInfoActivity extends android.app.Activity {
             query.put("groupId", groupId);
             query.put("userId", memberId);
             RedPacketApi.get(TestModule.getBusinessBaseUrl() + "/social/group/member/profile",
-                TestModule.getBusinessToken(), query, new RedPacketApi.Callback() {
+                query, new RedPacketApi.Callback() {
                     @Override
                     public void onSuccess(JSONObject result) {
                         if (result == null) return;
@@ -286,8 +299,22 @@ public class MemberInfoActivity extends android.app.Activity {
             join.setText(formatTime(joinTime));
         }
         String storeName = p.getString("storeName");
-        storeValue.setText(storeName == null || storeName.isEmpty() ? "无" : storeName);
-        storeId = p.getString("storeId") == null ? "" : p.getString("storeId");
+        // 店铺 ID 兜底：兼容后端可能的其他字段命名（storeId / store_id / shopId）
+        String sid = p.getString("storeId");
+        if (sid == null || sid.isEmpty()) {
+            sid = p.getString("store_id");
+        }
+        if (sid == null || sid.isEmpty()) {
+            sid = p.getString("shopId");
+        }
+        storeId = sid == null ? "" : sid;
+        boolean hasStore = !storeId.isEmpty();
+        String shown = storeName;
+        if ((shown == null || shown.isEmpty()) && hasStore) {
+            shown = "查看店铺";
+        }
+        storeValue.setText(shown == null || shown.isEmpty() ? "无" : shown);
+        setStoreClickable(hasStore);
         targetRole = p.getIntValue("role");
         // 禁言开关：viewerIsOwner 控制（且不是自己）；**群主(1)/管理员(2) 不可被禁言 → 不显示开关**
         viewerIsOwner = Boolean.TRUE.equals(p.getBoolean("viewerIsOwner"));
@@ -330,7 +357,7 @@ public class MemberInfoActivity extends android.app.Activity {
             ids.add(memberId);
             body.put("userIds", ids);
             RedPacketApi.post(TestModule.getBusinessBaseUrl() + "/social/group/member/remove",
-                TestModule.getBusinessToken(), body, new RedPacketApi.Callback() {
+                body, new RedPacketApi.Callback() {
                     @Override
                     public void onSuccess(JSONObject result) {
                         runOnUiThread(() -> {
@@ -357,9 +384,13 @@ public class MemberInfoActivity extends android.app.Activity {
             Toast.makeText(this, "该成员暂无店铺", Toast.LENGTH_SHORT).show();
             return;
         }
-        JSONObject data = new JSONObject();
-        data.put("storeId", storeId);
-        TestModule.emitGlobalEvent("OPEN_MEMBER_STORE", data);
+        try {
+            JSONObject data = new JSONObject();
+            data.put("storeId", storeId);
+            TestModule.emitGlobalEvent("OPEN_MEMBER_STORE", data);
+        } catch (Exception e) {
+            Toast.makeText(this, "打开店铺失败：" + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void applyMute(boolean mute) {
@@ -377,7 +408,7 @@ public class MemberInfoActivity extends android.app.Activity {
             ids.add(Member.stripZimPrefix(memberUserId));
             body.put("userIds", ids);
             RedPacketApi.post(TestModule.getBusinessBaseUrl() + "/social/group/member/mute",
-                TestModule.getBusinessToken(), body, new RedPacketApi.Callback() {
+                body, new RedPacketApi.Callback() {
                     @Override
                     public void onSuccess(JSONObject result) {
                         runOnUiThread(() -> Toast.makeText(MemberInfoActivity.this,

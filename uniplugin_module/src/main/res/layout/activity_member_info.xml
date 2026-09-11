@@ -290,6 +290,16 @@
                         android:text="无"
                         android:textColor="#111111"
                         android:textSize="15sp" />
+
+                    <!-- 有店铺时才显示的右箭头（配合整行可点击 → 店铺首页） -->
+                    <ImageView
+                        android:id="@+id/miStoreArrow"
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:layout_marginStart="4dp"
+                        android:contentDescription="查看店铺"
+                        android:src="@drawable/ic_arrow_right_gray"
+                        android:visibility="gone" />
                 </LinearLayout>
 
                 <View

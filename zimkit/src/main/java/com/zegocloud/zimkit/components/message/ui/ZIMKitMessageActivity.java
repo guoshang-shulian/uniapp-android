@@ -52,6 +52,11 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
         mListener = listener;
     }
 
+    /** 供卡片点击兜底取用（Fragment 侧未注册时回退到这里，见 CardMessageHolder） */
+    public static BackToUniappCallback getNativeDataListener() {
+        return mListener;
+    }
+
     @Override
     protected void initView() {
         com.zegocloud.zimkit.common.utils.ZimkitStatusBar.setWhite(this);

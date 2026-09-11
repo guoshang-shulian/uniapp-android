@@ -64,7 +64,7 @@ public final class RedPacketClaimAction {
         params.put("redPacketId", redPacketId);
         params.put("groupId", conversationId);
         params.put("clientRequestId", "rp_draw_" + System.currentTimeMillis());
-        RedPacketApi.draw(TestModule.getBusinessToken(), params, new RedPacketApi.Callback() {
+        RedPacketApi.draw(params, new RedPacketApi.Callback() {
             @Override
             public void onSuccess(JSONObject result) {
                 if (result == null) {

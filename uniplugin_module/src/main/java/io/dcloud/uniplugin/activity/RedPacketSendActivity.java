@@ -433,7 +433,7 @@ public class RedPacketSendActivity extends android.app.Activity {
                 return;
             }
 
-            RedPacketApi.create(TestModule.getBusinessToken(), params, new RedPacketApi.Callback() {
+            RedPacketApi.create(params, new RedPacketApi.Callback() {
                 @Override
                 public void onSuccess(JSONObject result) {
                     runOnUiThread(() -> {

@@ -41,23 +41,25 @@ public class RedPacketApi {
         return io.dcloud.uniplugin.TestModule.getBusinessBaseUrl();
     }
 
-    public static void create(String token, JSONObject params, Callback callback) {
-        // businessBaseUrl 已含 /buyer（App.vue 传的是 api.buyer），所以相对路径用 /social/... 
-        post(baseUrl() + "/social/redpacket/create", token, params, callback);
+    // ── 业务接口：token 由 BusinessSession 统一保证新鲜（过期自动刷新），调用方无需传 token ──
+
+    public static void create(JSONObject params, Callback callback) {
+        // businessBaseUrl 已含 /buyer（App.vue 传的是 api.buyer），所以相对路径用 /social/...
+        post(baseUrl() + "/social/redpacket/create", params, callback);
     }
 
-    public static void detail(String token, String redPacketId, String conversationId, Callback callback) {
+    public static void detail(String redPacketId, String conversationId, Callback callback) {
         JSONObject query = new JSONObject();
         query.put("redPacketId", redPacketId);
         query.put("conversationId", conversationId);
-        get(baseUrl() + "/social/redpacket/detail", token, query, callback);
+        get(baseUrl() + "/social/redpacket/detail", query, callback);
     }
 
-    public static void draw(String token, JSONObject params, Callback callback) {
-        post(baseUrl() + "/social/redpacket/draw", token, params, callback);
+    public static void draw(JSONObject params, Callback callback) {
+        post(baseUrl() + "/social/redpacket/draw", params, callback);
     }
 
-    public static void get(String url, String token, JSONObject query, Callback callback) {
+    public static void get(String url, JSONObject query, Callback callback) {
         StringBuilder sb = new StringBuilder(url);
         sb.append("?");
         boolean first = true;
@@ -68,12 +70,15 @@ public class RedPacketApi {
             sb.append(key).append("=").append(encode(query.getString(key)));
             first = false;
         }
-        request(buildRequest(sb.toString(), token, null, true), sb.toString(), null, true, callback, 0);
+        final String u = sb.toString();
+        whenTokenReady(readyToken ->
+            request(buildRequest(u, readyToken, null, true), u, null, true, callback, 0), callback);
     }
 
-    public static void post(String url, String token, JSONObject body, Callback callback) {
+    public static void post(String url, JSONObject body, Callback callback) {
         JSONObject safeBody = body == null ? new JSONObject() : body;
-        request(buildRequest(url, token, safeBody, false), url, safeBody, false, callback, 0);
+        whenTokenReady(readyToken ->
+            request(buildRequest(url, readyToken, safeBody, false), url, safeBody, false, callback, 0), callback);
     }
 
     private static String encode(String value) {
@@ -108,13 +113,68 @@ public class RedPacketApi {
         return url + sep + "nonce=" + nonce + "&timestamp=" + timestamp + "&sign=" + sign;
     }
 
+    /** 冷启动/刚登录时，等 uniapp 下发凭据的最长时间（登录成功后由 App.vue 与登录页立即下发） */
+    private static final long TOKEN_CONFIG_WAIT_MS = 6000L;
+
+    /**
+     * 第一道闸：没有凭据时的处理。
+     * <ul>
+     *   <li>凭据可用 → 立即发请求</li>
+     *   <li>还没登录（冷启动瞬间，uniapp 的 setBusinessConfig 还没到）→ 等一会儿，登录完成即自动放行</li>
+     *   <li>等不到 → <b>直接回调"请先登录"，不发请求</b>（拿空 token 打接口只会换来一个必然的 401）</li>
+     * </ul>
+     */
+    private static void whenTokenReady(java.util.function.Consumer<String> proceed, Callback callback) {
+        String token = BusinessSession.ensureFreshTokenBlocking();
+        if (!token.isEmpty()) {
+            proceed.accept(token);
+            return;
+        }
+        if (BusinessSession.hasCredential()) {
+            // 有 refreshToken 但刷新失败：凭据确实过期了
+            notifyNeedLogin(callback, "登录状态已过期，请重新登录后再试");
+            return;
+        }
+        new Thread(() -> {
+            long deadline = System.currentTimeMillis() + TOKEN_CONFIG_WAIT_MS;
+            String t = "";
+            while (System.currentTimeMillis() < deadline) {
+                t = BusinessSession.ensureFreshTokenBlocking();
+                if (!t.isEmpty()) {
+                    break;
+                }
+                try {
+                    Thread.sleep(150);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+            System.out.println("[RedPacketApi] token gate done, tokenLen=" + t.length());
+            if (t.isEmpty()) {
+                notifyNeedLogin(callback, "请先登录后再试");
+                return;
+            }
+            proceed.accept(t);
+        }, "rp-token-gate").start();
+    }
+
+    /** 凭据不可用：回调明确原因 + 通知 uniapp 走登录（而不是拿空 token 撞一个 401） */
+    private static void notifyNeedLogin(Callback callback, String message) {
+        android.util.Log.w("RedPacketApi", "no credential → " + message);
+        io.dcloud.uniplugin.TestModule.notifyNeedLogin(message);
+        if (callback != null) {
+            callback.onError(401, message);
+        }
+    }
+
     private static void request(final Request request, final String unsignedUrl, final JSONObject body,
         final boolean isGet, final Callback callback, final int attempt) {
         CLIENT.newCall(request).enqueue(new okhttp3.Callback() {
             @Override
             public void onFailure(okhttp3.Call call, IOException e) {
                 System.out.println("[RedPacketApi] failure url=" + call.request().url()
-                    + " tokenLen=" + io.dcloud.uniplugin.TestModule.getBusinessToken().length()
+                    + " tokenLen=" + BusinessSession.getAccessToken().length()
                     + " err=" + e.getMessage());
                 if (callback != null) {
                     callback.onError(-1, e.getMessage() == null ? "网络请求失败" : e.getMessage());
@@ -128,19 +188,26 @@ public class RedPacketApi {
                     String brief = respBody.length() > 300 ? respBody.substring(0, 300) : respBody;
                     System.out.println("[RedPacketApi] HTTP " + res.code()
                         + " url=" + call.request().url()
-                        + " tokenLen=" + io.dcloud.uniplugin.TestModule.getBusinessToken().length()
+                        + " tokenLen=" + BusinessSession.getAccessToken().length()
                         + " body=" + brief);
-                    // 401/403：多为 token 过期/未同步 → 通知 uniapp 刷新 token 后自动重试一次。
-                    // 重试时**重新取一次 token**（不再用旧的闭包变量），避免 uniapp 已刷新但重试还用旧值。
+                    // 401/403：token 过期/未同步 → 交给 BusinessSession 自己刷新（并发合并），刷到新 token 再重放一次。
+                    // 原生不再依赖 uniapp 的 request.js 推 token：过期判断+刷新都在原生侧完成。
                     if ((res.code() == 401 || res.code() == 403) && attempt == 0) {
-                        io.dcloud.uniplugin.TestModule.requestBusinessConfigRefresh();
-                        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                            String freshToken = io.dcloud.uniplugin.TestModule.getBusinessToken();
-                            System.out.println("[RedPacketApi] retry after token refresh, url=" + unsignedUrl
-                                + " tokenLen=" + freshToken.length());
-                            Request retry = buildRequest(unsignedUrl, freshToken, body, isGet);
-                            request(retry, unsignedUrl, body, isGet, callback, 1);
-                        }, 800);
+                        final String used = call.request().header("accessToken");
+                        new Thread(() -> {
+                            String fresh = BusinessSession.ensureFreshTokenBlocking();
+                            boolean changed = fresh != null && !fresh.isEmpty() && !fresh.equals(used);
+                            System.out.println("[RedPacketApi] retry after refresh, changed=" + changed
+                                + " url=" + unsignedUrl + " tokenLen="
+                                + (fresh == null ? 0 : fresh.length()));
+                            if (!changed) {
+                                // 刷新拿不到新 token：如实报「重新登录」，不拿旧 token 硬撞
+                                notifyNeedLogin(callback, "登录状态已过期，请重新登录后再试");
+                                return;
+                            }
+                            request(buildRequest(unsignedUrl, fresh, body, isGet),
+                                unsignedUrl, body, isGet, callback, 1);
+                        }, "rp-token-retry").start();
                         return;
                     }
                     if (callback == null) {

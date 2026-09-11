@@ -10,6 +10,8 @@ import com.bumptech.glide.Glide;
 import com.zegocloud.zimkit.R;
 import com.zegocloud.zimkit.components.message.model.CustomMessageModel;
 import com.zegocloud.zimkit.components.message.model.ZIMKitMessageModel;
+import com.zegocloud.zimkit.components.message.ui.BackToUniappCallback;
+import com.zegocloud.zimkit.components.message.ui.ZIMKitMessageActivity;
 import com.zegocloud.zimkit.components.message.ui.ZIMKitMessageFragment;
 import com.zegocloud.zimkit.services.model.CardMessageContent;
 import com.zegocloud.zimkit.services.model.ZIMKitMessageSubType;
@@ -56,11 +58,17 @@ public class CardMessageHolder extends MessageViewHolder {
             return;
         }
         root.findViewById(R.id.item_message_layout).setOnClickListener(v -> {
-            System.out.println("[CardBridge] card clicked, listener="
-                + (ZIMKitMessageFragment.getNativeDataListener() != null));
-            if (ZIMKitMessageFragment.getNativeDataListener() != null) {
-                ZIMKitMessageFragment.getNativeDataListener()
-                    .onCardAction("open_card", card.payloadJson);
+            // 卡片动作回调有两个静态注册点：Fragment（本类读的）和 Activity（startGroupChat 只注册了它）。
+            // 首次进 App 走 startGroupChat 时 Fragment 侧为 null → 原来直接 show nothing（点了没反应）；
+            // 这里加 Activity 兜底，两条入口都能点到就跳。
+            BackToUniappCallback cb = ZIMKitMessageFragment.getNativeDataListener();
+            if (cb == null) {
+                cb = ZIMKitMessageActivity.getNativeDataListener();
+            }
+            if (cb != null) {
+                cb.onCardAction("open_card", card.payloadJson);
+            } else {
+                System.out.println("[CardBridge] card clicked but no listener registered");
             }
         });
     }
@@ -128,7 +136,6 @@ public class CardMessageHolder extends MessageViewHolder {
 
         TextView title = root.findViewById(R.id.card_title);
         TextView subtitle = root.findViewById(R.id.card_subtitle);
-        TextView desc = root.findViewById(R.id.card_desc);
         TextView footer = root.findViewById(R.id.card_footer);
         TextView status = root.findViewById(R.id.card_status);
         if (title != null) {
@@ -136,9 +143,6 @@ public class CardMessageHolder extends MessageViewHolder {
         }
         if (subtitle != null) {
             subtitle.setTextColor(redPacket ? COLOR_WHITE : COLOR_SUB_GRAY);
-        }
-        if (desc != null) {
-            desc.setTextColor(redPacket ? COLOR_WHITE : COLOR_SUB_GRAY);
         }
         if (footer != null) {
             footer.setTextColor(redPacket ? COLOR_WHITE : COLOR_SUB_GRAY);
@@ -150,22 +154,35 @@ public class CardMessageHolder extends MessageViewHolder {
 
     private void fillCard(CardMessageContent card) {
         boolean redPacket = card.cardSubType == ZIMKitMessageSubType.RED_PACKET;
-        // 红包卡 / 其他卡各有独立布局（红包卡为 Figma 精确定位的 FrameLayout，见 zimkit_item_message_*_card.xml）
-        showCardLayout(redPacket);
-        ViewGroup row = root.findViewById(redPacket ? R.id.item_card_layout : R.id.item_card_row);
-        TextView title = root.findViewById(redPacket ? R.id.card_title : R.id.card_title_row);
-        TextView subtitle = root.findViewById(redPacket ? R.id.card_subtitle : R.id.card_subtitle_row);
-        TextView desc = root.findViewById(redPacket ? R.id.card_desc : R.id.card_desc_row);
-        TextView footer = root.findViewById(redPacket ? R.id.card_footer : R.id.card_footer_row_text);
-        TextView status = root.findViewById(redPacket ? R.id.card_status : R.id.card_status_row);
-        ImageView icon = root.findViewById(redPacket ? R.id.card_icon : R.id.card_icon_row);
-        View dividerView = root.findViewById(R.id.card_divider);
+        boolean invite = card.cardSubType == ZIMKitMessageSubType.COMMUNITY_INVITE;
+        // 三套布局互斥显示：红包卡 / 社群邀请卡（上下居中）/ 商品·店铺·文章卡（左图右文·上图下文）
+        showCardLayout(redPacket, invite);
+        ViewGroup row = root.findViewById(redPacket ? R.id.item_card_layout
+            : (invite ? R.id.item_card_invite : R.id.item_card_row));
+        TextView title = tv(redPacket ? R.id.card_title : (invite ? R.id.card_invite_title : R.id.card_title_row),
+            redPacket ? R.id.card_title : R.id.card_title_row);
+        TextView subtitle = tv(
+            redPacket ? R.id.card_subtitle : (invite ? R.id.card_invite_sub : R.id.card_subtitle_row),
+            redPacket ? R.id.card_subtitle : R.id.card_subtitle_row);
+        TextView footer = tv(redPacket ? R.id.card_footer : R.id.card_footer_row_text,
+            redPacket ? R.id.card_footer : R.id.card_footer_row_text);
+        TextView status = tv(redPacket ? R.id.card_status : R.id.card_status_row,
+            redPacket ? R.id.card_status : R.id.card_status_row);
+        ImageView icon = iv(redPacket ? R.id.card_icon : (invite ? R.id.card_invite_logo : R.id.card_icon_row),
+            redPacket ? R.id.card_icon : R.id.card_icon_row);
+        View dividerView = find(R.id.card_divider, R.id.card_divider);
         if (dividerView != null) {
             dividerView.setVisibility(View.GONE);
         }
-        View chipRowView = root.findViewById(R.id.card_chip_row);
+        // 胶囊行是 LinearLayout，必须按 View 取（不能走 tv()，否则 ClassCastException）
+        View chipRowView = find(R.id.card_chip_row, R.id.card_chip_row);
         if (chipRowView != null) {
             chipRowView.setVisibility(View.GONE);
+        }
+        // 社群邀请卡的「申请加入」按钮：不在 chip/footer 行里，单独复位
+        TextView inviteJoin = tv(R.id.card_invite_join, R.id.card_invite_join);
+        if (inviteJoin != null) {
+            inviteJoin.setVisibility(View.VISIBLE);
         }
         resetCardStyle();
 
@@ -183,13 +200,12 @@ public class CardMessageHolder extends MessageViewHolder {
                 bindArticle(card, row, title, subtitle, icon);
                 break;
             case ZIMKitMessageSubType.COMMUNITY_INVITE:
-                bindCommunityInvite(card, row, title, subtitle, footer, icon);
+                bindCommunityInvite(card, row, title, subtitle, inviteJoin, icon);
                 break;
             default:
                 title.setText(card.getSummary());
                 title.setVisibility(View.VISIBLE);
                 subtitle.setVisibility(View.GONE);
-                desc.setVisibility(View.GONE);
                 footer.setVisibility(View.GONE);
                 status.setVisibility(View.GONE);
                 icon.setVisibility(View.GONE);
@@ -197,15 +213,42 @@ public class CardMessageHolder extends MessageViewHolder {
         }
     }
 
-    /** 红包卡（FrameLayout）与其他卡（左图右文行）互斥显示，避免 Holder 复用时样式串台 */
-    private void showCardLayout(boolean redPacket) {
-        View packetLayout = root.findViewById(R.id.item_card_layout);
-        View rowLayout = root.findViewById(R.id.item_card_row);
-        if (packetLayout != null) {
-            packetLayout.setVisibility(redPacket ? View.VISIBLE : View.GONE);
+    /**
+     * 在"红包卡专用视图 / 普通卡视图"之间按需取视图。
+     * 注意：**不能在这里强转成具体类型** —— 各 id 的 View 类型不同
+     * （card_title 是 TextView、card_chip_row 是 LinearLayout、card_divider 是 View），
+     * 统一强转会在绑定卡片时直接抛 ClassCastException（曾导致点卡片闪退）。
+     * 所以只返回 View，由调用方按各自类型安全取用。
+     */
+    private View find(int primary, int fallback) {
+        View v = root.findViewById(primary);
+        if (v == null && fallback != primary) {
+            v = root.findViewById(fallback);
         }
-        if (rowLayout != null) {
-            rowLayout.setVisibility(redPacket ? View.GONE : View.VISIBLE);
+        return v;
+    }
+
+    private TextView tv(int primary, int fallback) {
+        View v = find(primary, fallback);
+        return v instanceof TextView ? (TextView) v : null;
+    }
+
+    private ImageView iv(int primary, int fallback) {
+        View v = find(primary, fallback);
+        return v instanceof ImageView ? (ImageView) v : null;
+    }
+
+    /** 三套卡片布局互斥显示，避免 Holder 复用时样式串台 */
+    private void showCardLayout(boolean redPacket, boolean invite) {
+        setVis(R.id.item_card_layout, redPacket);
+        setVis(R.id.item_card_invite, invite);
+        setVis(R.id.item_card_row, !redPacket && !invite);
+    }
+
+    private void setVis(int id, boolean visible) {
+        View v = root.findViewById(id);
+        if (v != null) {
+            v.setVisibility(visible ? View.VISIBLE : View.GONE);
         }
     }
 
@@ -258,23 +301,20 @@ public class CardMessageHolder extends MessageViewHolder {
     }
 
     /**
-     * 积分红包卡（严格按 Figma 5339:6257，750 宽稿 @2x → dp）：
-     * · 整卡 496×168 → 248×84dp，底 #FD9728，圆角 24px → 12dp
-     * · 封套 76×90 → 38×45dp，卡内偏移 x24,y16 → 12dp,8dp
-     * · 分隔线 448×1 → 224×0.5dp，白色 30%，卡内 y 122px → 61dp
-     * · 「积分红包」20px → 10sp 白，卡内 y 131px → 65.5dp
-     * · 普通卡祝福语 32px → 16sp，卡内 58dp,19dp（正文左边界 116px → 58dp）
-     * · 专属卡首行「给{昵称}的红包」16sp（19dp）+ 次行祝福语 14sp（49dp）
-     * · 已被领完：整卡 op=0.5 + 白色撕开封套 + 「已被领完」14sp
-     * 尺寸/字号/间距全部由布局 XML 固定，这里只切状态与文案。
+     * 积分红包卡（Figma 5339:6257，750 宽稿 @2x → dp）：
+     * · 整卡 248dp 宽、minHeight 92dp，底 #FD9728，圆角 24px → 12dp
+     * · 内容行（封面 38×45dp + 文案列）高 45dp、gravity=center_vertical
+     *   → 文案与封套**上下居中对齐**（自然布局实现，不再手工算 topMargin；行高固定所以单行/两行都同心）
+     * · 底行：分隔线 224×0.5dp 白 30% + 「积分红包」10sp 白，整体贴卡底（layout_gravity=bottom）
+     * · 专属卡：未领完 → 「给{昵称}的红包」16sp + 祝福语 14sp；已领完 → 「给{昵称}的红包」+「已被领完」
+     * · 已被领完：整卡 op=0.5 + 白色撕开封套；普通卡文案「已被领完」，专属卡保留「给XX的红包」并加「已被领完」
      */
     private void bindRedPacket(CardMessageContent card, ViewGroup row, TextView title, TextView subtitle,
         TextView footer, ImageView icon) {
         View bubble = root.findViewById(R.id.item_message_layout);
         View divider = root.findViewById(R.id.card_divider);
         if (bubble != null) {
-            // 卡内边距：上边距加大、下边距 0（下边距会把「积分红包」顶向白线）
-            bubble.setPadding(dp(6), dp(8), dp(6), 0);
+            // 卡内边距交回布局 XML（FrameLayout 自带 8/8/8/6dp），这里只复位透明度
             bubble.setAlpha(1f);
         }
         String type = card.getNestedString("detail", "type");
@@ -290,30 +330,35 @@ public class CardMessageHolder extends MessageViewHolder {
         boolean exclusive = !ended && "exclusive".equals(type);
         String toName = card.getNestedString("detail", "toUserName");
 
-        // 「积分红包」底行 + 白 30% 分隔线（Figma：卡内 y122px→61dp / y131px→65.5dp）
+        // 底行「积分红包」+ 白 30% 分隔线（visibility 已由 fillCard 复位为 GONE，这里按红包卡打开）
         footer.setText("积分红包");
+        footer.setTextSize(11);
         footer.setVisibility(View.VISIBLE);
         if (divider != null) {
             divider.setVisibility(View.VISIBLE);
         }
-
-        // 文案与其左侧封套**上下居中对齐**：
-        //   普通卡（1 行）→ 与封套同心（封套 8+45/2=30.5dp，行高 22.4dp → top 22dp）
-        //   专属卡（2 行）→ 两行整体以封套中心对称（19dp / 42dp ⇒ 中心 30.5dp）
-        final int titleTop = exclusive ? 19 : 22;
-        setTopMargin(title, titleTop);
-        setTopMargin(subtitle, exclusive ? 42 : 43);
-        setTopMargin(footer, 74);
-        footer.setTextSize(11);
+        // 底行状态（如「100积分」）：红包卡不展示
+        TextView status = root.findViewById(R.id.card_status);
+        if (status != null) {
+            status.setVisibility(View.GONE);
+        }
 
         if (ended) {
-            // 已领完（含自己领完）：整卡变灰 + 白色撕开封套 + 「已被领完」
+            // 已领完：整卡变灰(op 0.5) + 白色撕开封套
             if (bubble != null) {
                 bubble.setAlpha(0.5f);
             }
-            title.setText("已被领完");
+            boolean hasTo = !TextUtils.isEmpty(toName);
+            if (hasTo) {
+                // 专属卡保留「给XX的红包」，第二行说明已领完（不丢"给谁"这个信息）
+                title.setText("给" + toName + "的红包");
+                subtitle.setText("已被领完");
+                subtitle.setVisibility(View.VISIBLE);
+            } else {
+                title.setText("已被领完");
+                subtitle.setVisibility(View.GONE);
+            }
             title.setVisibility(View.VISIBLE);
-            subtitle.setVisibility(View.GONE);
             icon.setImageResource(R.drawable.zimkit_ic_envelope_opened);
         } else if (exclusive && !TextUtils.isEmpty(toName)) {
             // 专属红包未领完：原色 + 关闭的红封套 + 「给XX的红包」/ 祝福语
@@ -335,11 +380,15 @@ public class CardMessageHolder extends MessageViewHolder {
             subtitle.setVisibility(View.GONE);
             icon.setImageResource(R.drawable.zimkit_ic_envelope_card);
         }
+        // 封套尺寸由 XML 固定（38×45dp），清掉可能残留的外边距
         ViewGroup.LayoutParams lp = icon.getLayoutParams();
-        if (lp != null) {
-            lp.width = dp(38);
-            lp.height = dp(45);
-            icon.setLayoutParams(lp);
+        if (lp instanceof ViewGroup.MarginLayoutParams) {
+            ViewGroup.MarginLayoutParams mlp = (ViewGroup.MarginLayoutParams) lp;
+            mlp.width = dp(38);
+            mlp.height = dp(45);
+            mlp.setMarginStart(0);
+            mlp.topMargin = 0;
+            icon.setLayoutParams(mlp);
         }
         icon.setVisibility(View.VISIBLE);
     }
@@ -404,39 +453,45 @@ public class CardMessageHolder extends MessageViewHolder {
         TextView footer, ImageView icon) {
         // Figma 2455:2577 商品卡：496×527px → 248×263.5dp
         //   图 496×339 → 248×169.5dp（仅顶部圆角 r24→12dp）
-        //   标题 32px→16sp #111111（卡内 y55px→27.5dp，左 16px→8dp）
-        //   胶囊 108×42 → 54×21dp r6→3dp #F1F1F1，12sp #999999（卡内 y108px→54dp）
-        //   价格 32px→16sp #FF6363（卡内 y166px→83dp）
+        //   标题 32px→16sp #111111；胶囊 108×42 → 54×21dp r6→3dp #F1F1F1，12sp #999999；价格 32px→16sp #FF6363
+        // 布局：卡 body 自带 8dp 内边距（Figma 16px），图在上、文案在下 —— 全部自然排布，不用绝对定位/外边距硬撑
         setBubblePadding(0, 0, 0, 0);
 
-        // 行改纵向：图在上、文本在下；图标整卡宽 ×169.5dp
         if (row instanceof android.widget.LinearLayout) {
-            ((android.widget.LinearLayout) row).setOrientation(android.widget.LinearLayout.VERTICAL);
+            android.widget.LinearLayout ll = (android.widget.LinearLayout) row;
+            ll.setOrientation(android.widget.LinearLayout.VERTICAL);
+            ll.setPadding(dp(8), dp(8), dp(8), dp(8));
         }
         setTextColumnFullWidth();
+        // 文案列不再自己补边距（父容器已有 8dp）
+        setTextColumnPadding(0, 0, 0, 0);
 
         icon.setBackgroundResource(R.drawable.zimkit_shape_card_image_top);
         icon.setScaleType(ImageView.ScaleType.CENTER_CROP);
         ViewGroup.LayoutParams lp = icon.getLayoutParams();
         if (lp != null) {
-            lp.width = dpI(248);
+            // 宽度必须用 MATCH_PARENT（= 卡 248dp − 卡内边距 8×2 = 232dp）。
+            // 之前写死 248dp：比可用宽度多 16dp → 图右侧溢出被裁，视觉上「左边距 8dp、右边距 0」不对等。
+            lp.width = ViewGroup.LayoutParams.MATCH_PARENT;
             lp.height = dpI(169.5f);
+            if (lp instanceof ViewGroup.MarginLayoutParams) {
+                ViewGroup.MarginLayoutParams mlp = (ViewGroup.MarginLayoutParams) lp;
+                mlp.setMarginStart(0);
+                mlp.topMargin = 0;
+                // 图文间距：标题与图片留 10dp
+                mlp.bottomMargin = dp(10);
+            }
             icon.setLayoutParams(lp);
         }
-        // 上边距 = 左边距（用户要求：两者一致）
-        setTopMargin(icon, 8);
-        setStartMargin(icon, 8);
         loadImage(icon, card.getNestedString("detail", "productImage"));
 
-        // 文本区：卡内 8dp 内边距（Figma 16px→8dp），底部多留一点把卡撑到设计稿高度
-        setTextColumnPadding(8, 10, 8, 12);
         title.setText(card.getNestedString("detail", "productName"));
         title.setTextSize(16);
         title.setMaxLines(2);
         title.setTextColor(COLOR_TITLE_DARK);
         title.setVisibility(View.VISIBLE);
         setStartMargin(title, 0);
-        setTopMargin(title, 2);
+        setTopMargin(title, 0);
 
         // 店铺名（设计稿商品卡不含，保留但不展示）
         subtitle.setVisibility(View.GONE);
@@ -493,31 +548,33 @@ public class CardMessageHolder extends MessageViewHolder {
     /** 店铺卡：左 logo + 名称/简介 + 信息胶囊（与商品/文章卡同一套卡片语言） */
     private void bindShop(CardMessageContent card, ViewGroup row, TextView title, TextView subtitle,
         ImageView icon) {
-        // Figma 未给店铺卡帧 → 沿用商品/文章卡的节奏：卡 248dp 宽、左 logo 62dp r8、名称 16sp #111、简介 12sp #666 两行、胶囊 21dp
+        // 卡 248dp 宽、卡内边距 8dp（父容器统一给），logo 62dp r8 在左、文案在右，**整行垂直居中**
         setBubblePadding(0, 0, 0, 0);
-        // 行改横向：logo 在左、文本在右
         if (row instanceof android.widget.LinearLayout) {
-            ((android.widget.LinearLayout) row).setOrientation(android.widget.LinearLayout.HORIZONTAL);
+            android.widget.LinearLayout ll = (android.widget.LinearLayout) row;
+            ll.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+            ll.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            ll.setPadding(dp(8), dp(8), dp(8), dp(8));
         }
         setTextColumnRemainder();
+        // 文案列不再补边距（父容器已有 8dp），logo 右侧 8dp 由 icon 的 endMargin 负责
+        setTextColumnPadding(0, 0, 0, 0);
 
         icon.setBackgroundResource(R.drawable.zimkit_shape_8dp_image_bg_square);
         icon.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        syncIconSize(icon, dp(62));
         ViewGroup.LayoutParams lp = icon.getLayoutParams();
         if (lp != null) {
             lp.width = dp(62);
             lp.height = dp(62);
             if (lp instanceof ViewGroup.MarginLayoutParams) {
-                ((ViewGroup.MarginLayoutParams) lp).setMarginEnd(dp(8));
+                ViewGroup.MarginLayoutParams mlp = (ViewGroup.MarginLayoutParams) lp;
+                mlp.setMarginStart(0);
+                mlp.setMarginEnd(dp(8));
+                mlp.topMargin = 0;
             }
             icon.setLayoutParams(lp);
         }
-        setStartMargin(icon, 8);
-        setTopMargin(icon, 8);
         loadImage(icon, card.getNestedString("detail", "storeLogo"));
-        // 文本区：卡内 8dp 内边距，logo 右侧 8dp（Figma 商品/文章卡同节奏）
-        setTextColumnPadding(8, 8, 12, 8);
 
         title.setText(card.getNestedString("detail", "storeName"));
         title.setTextSize(16);
@@ -570,9 +627,12 @@ public class CardMessageHolder extends MessageViewHolder {
         //   标题 28px→14sp #111111（卡内 x155px→77.5dp, y16→8dp，宽 325px→162.5dp）
         //   描述 24px→12sp #666666（卡内 y71px→35.5dp，两行）
         setBubblePadding(0, 0, 0, 0);
-        // 行改横向：缩略图在左、文本在右
+        // 缩略图在左、文案在右，**整行垂直居中**
         if (row instanceof android.widget.LinearLayout) {
-            ((android.widget.LinearLayout) row).setOrientation(android.widget.LinearLayout.HORIZONTAL);
+            android.widget.LinearLayout ll = (android.widget.LinearLayout) row;
+            ll.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+            ll.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            ll.setPadding(dp(8), dp(8), dp(8), dp(8));
         }
         setTextColumnRemainder();
 
@@ -584,15 +644,16 @@ public class CardMessageHolder extends MessageViewHolder {
             lp.width = thumb;
             lp.height = thumb;
             if (lp instanceof ViewGroup.MarginLayoutParams) {
-                ((ViewGroup.MarginLayoutParams) lp).setMarginEnd(0);
+                ViewGroup.MarginLayoutParams mlp = (ViewGroup.MarginLayoutParams) lp;
+                mlp.setMarginStart(0);
+                mlp.setMarginEnd(dp(8));
+                mlp.topMargin = 0;
             }
             icon.setLayoutParams(lp);
         }
-        setStartMargin(icon, 8);
-        setTopMargin(icon, 8);
         loadImage(icon, card.getNestedString("detail", "cover"));
-        // 文本区：卡内 8dp 内边距，缩略图右侧 8dp
-        setTextColumnPadding(8, 8, 8, 8);
+        // 文案列不再补边距（父容器已有 8dp）
+        setTextColumnPadding(0, 0, 0, 0);
 
         title.setText(card.getNestedString("detail", "title"));
         title.setTextSize(14);
@@ -618,19 +679,32 @@ public class CardMessageHolder extends MessageViewHolder {
         }
     }
 
-    /** 社群邀请卡：logo + 邀请您加入社群 + 社群名 + 居中“申请加入” */
+    /**
+     * 社群邀请卡（上下两段）
+     * · 上段：左=社群 logo 48dp，右=邀请语「邀请您加入社群」14sp + 社群名 12sp（两行左对齐，与 logo 垂直居中）
+     * · 下段：「申请加入」紫色文字按钮，独占一行、整行居中（样式在布局 XML 固定）
+     */
     private void bindCommunityInvite(CardMessageContent card, ViewGroup row, TextView title,
-        TextView subtitle, TextView footer, ImageView icon) {
-        setBubblePadding(12, 12, 12, 12);
+        TextView subtitle, TextView join, ImageView icon) {
+        // 卡内边距交回布局 XML（邀请卡自带 12/12/12/8dp），bubble 不再叠加
+        setBubblePadding(0, 0, 0, 0);
         title.setText("邀请您加入社群");
         title.setTextSize(14);
         title.setTextColor(COLOR_TITLE_DARK);
+        title.setVisibility(View.VISIBLE);
+        // 上段是"左图右文"，文字保持左对齐（不要居中）
+        title.setGravity(android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL);
+
         subtitle.setText(card.getNestedString("detail", "groupName"));
         subtitle.setTextSize(12);
         subtitle.setVisibility(View.VISIBLE);
-        footer.setText("申请加入");
-        footer.setTextColor(0xFF9079F9);
-        footer.setVisibility(View.VISIBLE);
+        subtitle.setGravity(android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL);
+
+        if (join != null) {
+            join.setVisibility(View.VISIBLE);
+            // 下段按钮：整行居中
+            join.setGravity(android.view.Gravity.CENTER);
+        }
         icon.setBackgroundResource(R.drawable.zimkit_shape_6dp_image_bg);
         icon.setScaleType(ImageView.ScaleType.CENTER_CROP);
         syncIconSize(icon, dp(48));

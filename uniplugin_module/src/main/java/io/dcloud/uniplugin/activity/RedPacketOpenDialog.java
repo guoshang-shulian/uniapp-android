@@ -136,8 +136,13 @@ public class RedPacketOpenDialog extends Dialog {
         setContentView(R.layout.activity_red_packet_open);
         Window window = getWindow();
         if (window != null) {
-            // 遮罩必须铺到状态栏：Android 11+ 只设 FLAG_LAYOUT_NO_LIMITS 会被
-            // setDecorFitsSystemWindows(true) 覆盖 → 状态栏露出白条。这里显式关掉系统栏适配。
+            // ── 让 Dialog 窗口真正铺满全屏（含状态栏），这样「遮罩」天然盖住状态栏 ──
+            // 之前只设 FLAG_LAYOUT_NO_LIMITS / setDecorFitsSystemWindows(false)，但 Dialog 的
+            // 窗口 bounds 仍被系统裁到状态栏之下（实测 decor bounds=[0,147]…），
+            // 状态栏就露出没被遮罩的原始界面 → 没有沉浸感。
+            // 关键补充：SOFT_INPUT_ADJUST_RESIZE（Dialog 默认 ADJUST_PAN 会把窗口压缩）+ 透明状态栏。
+            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+            window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                 window.setDecorFitsSystemWindows(false);
             } else {
@@ -145,18 +150,15 @@ public class RedPacketOpenDialog extends Dialog {
                     View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                         | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
             }
-            window.setFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                    | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-                    | WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS,
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                    | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-                    | WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-            window.addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+            window.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                | WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
+                | WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
             window.setStatusBarColor(Color.TRANSPARENT);
-            window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            window.setNavigationBarColor(Color.TRANSPARENT);
             window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
             window.setDimAmount(0f);
+            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         }
         // 注意：setCanceledOnTouchOutside 必须在 show() 之后调用（在 onCreate 里调用会抛
         // IllegalStateException: The dialog is not shown ...），因此这里只设置 setCancelable。
@@ -259,7 +261,7 @@ public class RedPacketOpenDialog extends Dialog {
         if (openBtn != null) {
             openBtn.setVisibility(View.GONE);
         }
-        RedPacketApi.detail(TestModule.getBusinessToken(), redPacketId, conversationId,
+        RedPacketApi.detail(redPacketId, conversationId,
             new RedPacketApi.Callback() {
                 @Override
                 public void onSuccess(JSONObject result) {
@@ -333,7 +335,12 @@ public class RedPacketOpenDialog extends Dialog {
 
         boolean expired = "expired".equals(status) || "refunded".equals(status);
         boolean ended = "ended".equals(status);
+        // 专属判定：后端 detail.toUserId 是纯数字用户ID，本地是带 user_ 前缀的 ZIM ID
+        // —— 必须剥前缀比较，否则「给自己的专属红包」也会被判成「仅他人可领取」
+        String selfMemberId = io.dcloud.uniplugin.memberpicker.Member
+            .stripZimPrefix(TestModule.getLocalUserId());
         boolean exclusiveToOther = "exclusive".equals(type) && !TextUtils.isEmpty(toUserId)
+            && !toUserId.equals(selfMemberId)
             && !toUserId.equals(TestModule.getLocalUserId());
 
         if (myPoints > 0) {
@@ -378,7 +385,7 @@ public class RedPacketOpenDialog extends Dialog {
         params.put("groupId", conversationId);
         params.put("clientRequestId", "rp_draw_" + System.currentTimeMillis());
         Log.i(TAG, "draw start rpId=" + redPacketId);
-        RedPacketApi.draw(TestModule.getBusinessToken(), params, new RedPacketApi.Callback() {
+        RedPacketApi.draw(params, new RedPacketApi.Callback() {
             @Override
             public void onSuccess(JSONObject result) {
                 post(() -> {

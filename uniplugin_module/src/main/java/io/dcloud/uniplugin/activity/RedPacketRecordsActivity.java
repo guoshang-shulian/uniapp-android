@@ -107,7 +107,7 @@ public class RedPacketRecordsActivity extends Activity {
     }
 
     private void load() {
-        RedPacketApi.detail(TestModule.getBusinessToken(), redPacketId, conversationId,
+        RedPacketApi.detail(redPacketId, conversationId,
             new RedPacketApi.Callback() {
                 @Override
                 public void onSuccess(JSONObject result) {

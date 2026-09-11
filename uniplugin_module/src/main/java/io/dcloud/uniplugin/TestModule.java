@@ -1254,12 +1254,26 @@ public class TestModule extends UniModule {
         }
     }
 
+    /**
+     * 临时群 ID 生成器：时间戳 + 进程内自增序号。
+     * 用自增序号替代随机数，保证「同一毫秒内连续创建多个群」也绝不撞 ID。
+     */
+    private static final java.util.concurrent.atomic.AtomicLong TEMP_GROUP_SEQ =
+        new java.util.concurrent.atomic.AtomicLong(0);
+
+    private static String nextTempGroupId() {
+        return "g_" + System.currentTimeMillis() + "_" + TEMP_GROUP_SEQ.incrementAndGet();
+    }
+
     private void findTwoPersonGroupForInvite(final List<String> gids, final int index,
         final String peer, final String self, final String cardJson, final int subType,
         final UniJSCallback callback) {
         if (index >= gids.size()) {
             // 无“仅我+对方”2人群 → 新建（群名=群聊，bizType=temp）
-            String newGid = "g_" + System.currentTimeMillis() + "_" + (int) (Math.random() * 99999);
+            // ⚠️ 群 ID 必须全局唯一：多选分享时会给多个联系人连续建群，
+            // 原来 "g_"+currentTimeMillis()+"_"+(int)(Math.random()*99999) 在同一毫秒内有概率撞 ID，
+            // 撞了第二次 createGroup 就报“群已存在” → 那张卡片发不出去（且失败原因被 toast 吞掉）。
+            String newGid = nextTempGroupId();
             ZIMKit.createGroup("群聊", newGid, new ArrayList<String>() {{ add(peer); }},
                 new CreateGroupCallback() {
                     @Override
@@ -1794,32 +1808,40 @@ public class TestModule extends UniModule {
 
     /** 原生红包 Activity 调用业务接口所需的静态配置 */
     private static String businessBaseUrl = "https://buyer-ceshi.shanxunsw.com/buyer";
-    private static String businessToken = "";
     private static String localUserId = "";
     private static String localUserName = "";
     private static String localUserAvatar = "";
 
+    /**
+     * 业务 token 统一由 {@link io.dcloud.uniplugin.others.BusinessSession} 持有与刷新
+     * （原生自己判断 JWT 过期 + 自己调 /passport/member/refresh 刷新），
+     * uniapp 只负责在这里初始化一次；不再需要 uniapp 的请求层反推 token 给原生。
+     */
     @UniJSMethod(uiThread = true)
     public void setBusinessConfig(String baseUrl, String token, String userId, String userName, String avatarUrl) {
+        setBusinessConfigWithRefresh(baseUrl, token, userId, userName, avatarUrl, "");
+    }
+
+    /** 带 refreshToken 的完整初始化：原生据此可独立刷新，不必回问 uniapp */
+    @UniJSMethod(uiThread = true)
+    public void setBusinessConfigWithRefresh(String baseUrl, String token, String userId, String userName,
+        String avatarUrl, String refreshToken) {
         cacheContext(safeContext());
         if (baseUrl != null && !baseUrl.isEmpty()) {
             businessBaseUrl = baseUrl;
         }
-        businessToken = token == null ? "" : token;
+        io.dcloud.uniplugin.others.BusinessSession.setConfig(businessBaseUrl, token, refreshToken);
         localUserId = userId == null ? "" : userId;
         localUserName = userName == null ? "" : userName;
         localUserAvatar = avatarUrl == null ? "" : avatarUrl;
         System.out.println("[BusinessConfig] baseUrl=" + businessBaseUrl
-            + " tokenLen=" + businessToken.length()
+            + " tokenLen=" + io.dcloud.uniplugin.others.BusinessSession.getAccessToken().length()
+            + " refreshLen=" + io.dcloud.uniplugin.others.BusinessSession.getRefreshToken().length()
             + " userId=" + localUserId + " userName=" + localUserName);
     }
 
     public static String getBusinessBaseUrl() {
         return businessBaseUrl;
-    }
-
-    public static String getBusinessToken() {
-        return businessToken;
     }
 
     public static String getLocalUserId() {
@@ -1834,11 +1856,6 @@ public class TestModule extends UniModule {
         return localUserAvatar;
     }
 
-    /** 请求 uniapp 重新下发 businessToken（原生接口 401/403 时自动触发，刷新后自动重试一次） */
-    public static void requestBusinessConfigRefresh() {
-        emitGlobalEvent("REFRESH_BUSINESS_TOKEN", new JSONObject());
-    }
-
     /**
      * uniapp 侧 token 刷新后主动推送最新 token（反向：不用等原生 403 才刷新）。
      * 只更新 token 字段，不动 baseUrl/userId/昵称头像，避免并发写坏配置。
@@ -1846,11 +1863,44 @@ public class TestModule extends UniModule {
     @UniJSMethod(uiThread = false)
     public void notifyBusinessTokenChanged(String token) {
         String t = token == null ? "" : token;
-        if (t.isEmpty() || t.equals(businessToken)) {
+        if (t.isEmpty()) {
             return;
         }
-        businessToken = t;
+        // 可选同步通道：uniapp 若自己轮换了 token（走它自己的请求层），可主动同步给原生。
+        // 但原生**不依赖**它——过期判断与刷新由 BusinessSession 独立完成。
+        io.dcloud.uniplugin.others.BusinessSession.setConfig(null, t, null);
         android.util.Log.i("BusinessConfig", "token updated by push, tokenLen=" + t.length());
+    }
+
+    /**
+     * 原生刷新了 token → 反向同步给 uniapp，更新其登录态存储。
+     * 目的：避免"两边各持一份 token"互相踩（一侧刷新后另一侧仍用旧值 → 401 → 再刷 → 抖动）。
+     * 只推"凭据变了"这一件事，不参与 uniapp 的请求层。
+     */
+    public static void notifyNativeTokenRefreshed(String accessToken, String refreshToken) {
+        try {
+            JSONObject data = new JSONObject();
+            data.put("accessToken", accessToken == null ? "" : accessToken);
+            data.put("refreshToken", refreshToken == null ? "" : refreshToken);
+            emitGlobalEvent("BUSINESS_TOKEN_REFRESHED", data);
+        } catch (Exception e) {
+            android.util.Log.w("BusinessConfig", "notify token refreshed fail: " + e);
+        }
+    }
+
+    /**
+     * 原生发现凭据不可用（没登录 / 登录已过期）→ 通知 uniapp 走登录。
+     * 场景：退出登录 → 冷启动（此时没有可用 token）→ 点红包等原生入口。
+     * 不再拿空 token 去打接口换一个必然的 401，而是明确引导登录。
+     */
+    public static void notifyNeedLogin(String message) {
+        try {
+            JSONObject data = new JSONObject();
+            data.put("message", message == null ? "" : message);
+            emitGlobalEvent("BUSINESS_NEED_LOGIN", data);
+        } catch (Exception e) {
+            android.util.Log.w("BusinessConfig", "notify need login fail: " + e);
+        }
     }
 
     @UniJSMethod(uiThread = true)
@@ -2030,7 +2080,7 @@ public class TestModule extends UniModule {
             ids.add(memberId);
             body.put("userIds", ids);
             io.dcloud.uniplugin.others.RedPacketApi.post(
-                getBusinessBaseUrl() + "/social/group/member/sync", getBusinessToken(), body,
+                getBusinessBaseUrl() + "/social/group/member/sync", body,
                 new io.dcloud.uniplugin.others.RedPacketApi.Callback() {
                     @Override
                     public void onSuccess(JSONObject result) {

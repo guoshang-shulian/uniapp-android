@@ -176,7 +176,7 @@ public class RedPacketDetailActivity extends android.app.Activity {
             renderDetail(mock);
             return;
         }
-        RedPacketApi.detail(TestModule.getBusinessToken(), redPacketId, conversationId,
+        RedPacketApi.detail(redPacketId, conversationId,
             new RedPacketApi.Callback() {
                 @Override
                 public void onSuccess(JSONObject result) {
@@ -384,7 +384,7 @@ public class RedPacketDetailActivity extends android.app.Activity {
         params.put("redPacketId", redPacketId);
         params.put("groupId", conversationId);
         params.put("clientRequestId", "rp_draw_" + System.currentTimeMillis());
-        RedPacketApi.draw(TestModule.getBusinessToken(), params, new RedPacketApi.Callback() {
+        RedPacketApi.draw(params, new RedPacketApi.Callback() {
             @Override
             public void onSuccess(JSONObject result) {
                 runOnUiThread(() -> onDrawn(result));
