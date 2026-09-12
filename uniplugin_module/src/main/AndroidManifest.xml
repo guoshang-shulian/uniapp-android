@@ -24,5 +24,10 @@
 <activity android:name="io.dcloud.uniplugin.memberpicker.GroupMembersActivity"
     android:theme="@style/AppTheme.UniPlugin.NoActionBar"
     android:exported="false"></activity>
+<!-- 红包沉浸式全屏页：透明主题 + 铺满整屏（遮罩需盖住状态栏）。
+     不要加 launchMode/权限；它从聊天页 startActivity 进来，finish 即回聊天页。 -->
+<activity android:name="io.dcloud.uniplugin.activity.RedPacketFullscreenActivity"
+    android:theme="@style/RedPacketFullscreenTheme"
+    android:exported="false"></activity>
 </application>
 </manifest>

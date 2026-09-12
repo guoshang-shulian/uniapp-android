@@ -48,8 +48,6 @@ import io.dcloud.uniplugin.others.RedPacketApi;
 public class RedPacketSendActivity extends android.app.Activity {
 
     /** 正式请求后端红包接口（上线后保持 false，禁止带 mock） */
-    private static final boolean NATIVE_MOCK = false;
-
     private String conversationId = "";
     private String conversationType = "group";
     private String currentType = "fortune"; // normal | fortune | exclusive
@@ -414,24 +412,6 @@ public class RedPacketSendActivity extends android.app.Activity {
             + String.format("%.2f", total) + " conversationId=" + conversationId);
 
         try {
-            if (NATIVE_MOCK) {
-                JSONObject mock = new JSONObject();
-                mock.put("redPacketId", "RP_MOCK_" + System.currentTimeMillis());
-                mock.put("type", currentType);
-                mock.put("totalPoints", total);
-                mock.put("unitPoints", params.getDouble("unitPoints"));
-                mock.put("count", params.getIntValue("count"));
-                mock.put("toUserId", params.getString("toUserId"));
-                mock.put("toUserName", params.getString("toUserName"));
-                mock.put("remark", params.getString("remark"));
-                mock.put("status", "active");
-                mock.put("drawCount", 0);
-                mock.put("myDrawPoints", 0.0);
-                mock.put("expireAt", System.currentTimeMillis() + 86400L * 1000);
-                resetSubmitting();
-                onCreated(mock);
-                return;
-            }
 
             RedPacketApi.create(params, new RedPacketApi.Callback() {
                 @Override

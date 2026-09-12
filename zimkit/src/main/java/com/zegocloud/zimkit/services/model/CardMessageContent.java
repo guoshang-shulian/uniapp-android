@@ -6,7 +6,10 @@ import org.json.JSONObject;
 
 /**
  * 自定义卡片内容解析（商品/店铺/文章/红包）。
- * payload 是 JSON 字符串，见 docs/im-custom-message-contract.md。
+ *
+ * <p>payload 是 ZIM 自定义消息的 {@code message} 字段（JSON 字符串），
+ * 由后端 {@code /buyer/social/group/chat/goods-card} 给出结构（客户端发消息时用 payloadJson）。
+ * 卡片类型由 {@code subType} 区分，各类型的字段直接从这个 json 里按 key 取。
  */
 public class CardMessageContent {
 

@@ -1,12 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  红包（聊天输入区「更多」面板的按钮图标）
+
+  为什么这么写：
+  · 同面板的相机/图片/商品图标实际都是 32dp，而这个红包原来声明成 48dp ——
+    放进 52dp 的白色圆角容器里几乎铺满，把白底盖住了，看起来「没有白底、还比别的大」。
+  · 现在声明为 32dp（与其它按钮一致），并用 <group> 把图形以 viewport 中心缩放 0.73，
+    四周留出与 PNG 图标相同的透明留白 —— 视觉大小才真正统一。
+  · 用 <group> 的 scale 而不是手改 path 坐标：矩阵运算交给系统渲染，
+    不会出现「手写路径变换算错相对命令基准点、图形被拉歪」的问题。
+  · path 数据保持原样（来源：OpenIM 底部「更多-红包」图标）。
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="48dp"
-    android:height="48dp"
+    android:width="32dp"
+    android:height="32dp"
     android:viewportWidth="1024"
     android:viewportHeight="1024">
 
-    <!-- 红包（沿用 OpenIM 底部"更多-红包"图标：灰色信封+封口） -->
-    <path
-        android:fillColor="#4C4C4C"
-        android:pathData="M192,202.4V896c0,35.2 28.8,64 64,64h512c35.2,0 64,-28.8 64,-64V202.4L512,256l-320,-53.6zM604.8,444.8l45.6,45.6 -87.2,85.6H640v64h-96v32h96v64h-96v96h-64v-96h-96v-64h96v-32h-96v-64h76.8l-86.4,-86.4L420,444l92,92.8 92.8,-92zM768,64H256c-35.2,0 -64,28.8 -64,64v42.4L512,224l320,-53.6V128c0,-35.2 -28.8,-64 -64,-64z" />
+    <!-- 以 viewport 中心 (512,512) 缩放 0.73（等价于 translate/scale/translate 组合） -->
+    <group
+        android:pivotX="512"
+        android:pivotY="512"
+        android:scaleX="0.73"
+        android:scaleY="0.73">
+
+        <path
+            android:fillColor="#4C4C4C"
+            android:pathData="M192,202.4V896c0,35.2 28.8,64 64,64h512c35.2,0 64,-28.8 64,-64V202.4L512,256l-320,-53.6zM604.8,444.8l45.6,45.6 -87.2,85.6H640v64h-96v32h96v64h-96v96h-64v-96h-96v-64h96v-32h-96v-64h76.8l-86.4,-86.4L420,444l92,92.8 92.8,-92zM768,64H256c-35.2,0 -64,28.8 -64,64v42.4L512,224l320,-53.6V128c0,-35.2 -28.8,-64 -64,-64z" />
+    </group>
 </vector>

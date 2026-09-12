@@ -71,14 +71,28 @@ public class GroupQrcodeActivity extends android.app.Activity {
         }
         applyLocalConversationInfo();
 
-        // 二维码（内容=群ID）
+        // 二维码：内容必须用**后端返回的 qrContent**（格式 TEMP_GROUP:GROUP_xxx）。
+        // 以前是本地 QRCodeGenerator.generate(groupId)（裸 groupId）—— 违反后端约定
+        // "二维码不写 TEMP_GROUP: 前缀 → 扫码解析失败或识别错误"，导致首页扫一扫扫不出群聊码。
+        // 先画一版兜底（后端没回来/拿不到时不至于空白），拿到 qrContent 后再重画。
         ImageView qr = findViewById(R.id.gqQr);
-        qrBitmap = QRCodeGenerator.generate(groupId, 720);
+        applyQrContent(qr, groupId);
+        loadGroupInfo();
+    }
+
+    /**
+     * 画二维码。
+     * @param content 二维码内容；为空则退回 groupId（本地兜底，保证页面不空白）
+     */
+    private void applyQrContent(ImageView qr, String content) {
+        String text = (content == null || content.isEmpty()) ? groupId : content;
+        if (text == null || text.isEmpty()) {
+            return;
+        }
+        qrBitmap = QRCodeGenerator.generate(text, 720);
         if (qrBitmap != null) {
             qr.setImageBitmap(qrBitmap);
         }
-
-        loadGroupInfo();
     }
 
     /** 本地会话缓存兜底：会话名/会话头像（局域网缓存，无网络也能显示） */
@@ -108,6 +122,10 @@ public class GroupQrcodeActivity extends android.app.Activity {
 
     /** 群名/群头像：ZIM 群信息 */
     private void loadGroupInfo() {
+        // ① 先问后端要权威群资料（含二维码字符串 qrContent）
+        //    格式约定 TEMP_GROUP:GROUP_xxx，扫码解析靠它识别类型；本地拼裸 groupId 会被判成"无法识别"。
+        loadTempGroupDetail();
+        // ② 同时用 ZIM 兜名称/头像（后端没有这个群的本地记录时，ZIM 是唯一来源）
         try {
             ZIMKitCore.getInstance().zim().queryGroupInfo(groupId, (info, error) -> {
                 if (error != null || info == null || info.baseInfo == null) {
@@ -132,6 +150,77 @@ public class GroupQrcodeActivity extends android.app.Activity {
             });
         } catch (Exception e) {
             android.util.Log.w("GroupQrcode", "queryGroupInfo exception: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 向后端要群详情：拿权威 `qrContent`（画二维码）与 `groupName`/`groupLogo`。
+     *
+     * <p>顺序：**先用建群登记时缓存的 qrContent**（register 接口返回里就带了，省一次请求），
+     * 没有缓存（比如登记时没拿到、或这个群是旧数据）再走 `GET /buyer/social/temp-group/{groupId}`。
+     * 群未登记时 GET 会失败 → 保持兜底版本，日志 tag `GroupQrcode` 能看到原因。
+     */
+    private void loadTempGroupDetail() {
+        if (groupId == null || groupId.isEmpty()) {
+            return;
+        }
+        // ① 建群登记时缓存的二维码字符串（最省事也最权威）
+        String cached = io.dcloud.uniplugin.TestModule.getCachedTempGroupQr(groupId);
+        if (cached != null && !cached.isEmpty()) {
+            android.util.Log.i("GroupQrcode", "use cached qrContent=" + cached);
+            ImageView qr = findViewById(R.id.gqQr);
+            if (qr != null) {
+                applyQrContent(qr, cached);
+            }
+            return;
+        }
+        // ② 没缓存 → 问后端要详情
+        try {
+            io.dcloud.uniplugin.others.RedPacketApi.get(
+                io.dcloud.uniplugin.TestModule.getBusinessBaseUrl() + "/social/temp-group/" + groupId,
+                new com.alibaba.fastjson.JSONObject(),
+                new io.dcloud.uniplugin.others.RedPacketApi.Callback() {
+                    @Override
+                    public void onSuccess(com.alibaba.fastjson.JSONObject result) {
+                        if (result == null) {
+                            return;
+                        }
+                        final String qrContent = result.getString("qrContent");
+                        final String name = result.getString("groupName");
+                        final String logo = result.getString("groupLogo");
+                        android.util.Log.i("GroupQrcode", "backend qrContent=" + qrContent
+                            + " name=" + name + " logo=" + logo);
+                        runOnUiThread(() -> {
+                            // 用后端 qrContent 重画（TEMP_GROUP:GROUP_xxx）—— 扫码解析靠这个前缀
+                            ImageView qr = findViewById(R.id.gqQr);
+                            if (qr != null && qrContent != null && !qrContent.isEmpty()) {
+                                applyQrContent(qr, qrContent);
+                            }
+                            if (name != null && !name.isEmpty()) {
+                                groupName = name;
+                                TextView tv = findViewById(R.id.gqName);
+                                if (tv != null) {
+                                    tv.setText(name);
+                                }
+                            }
+                            if (logo != null && !logo.isEmpty()) {
+                                Glide.with(GroupQrcodeActivity.this)
+                                    .load(logo)
+                                    .apply(RequestOptions.bitmapTransform(new RoundedCorners(dp(12))))
+                                    .into((ImageView) findViewById(R.id.gqLogo));
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onError(int code, String message) {
+                        // 后端本地无这个群（SDK 建的群没登记成功）→ 保持兜底版本，日志能定位
+                        android.util.Log.w("GroupQrcode", "temp-group detail fail gid=" + groupId
+                            + " code=" + code + " msg=" + message);
+                    }
+                });
+        } catch (Exception e) {
+            android.util.Log.w("GroupQrcode", "loadTempGroupDetail exception: " + e.getMessage());
         }
     }
 

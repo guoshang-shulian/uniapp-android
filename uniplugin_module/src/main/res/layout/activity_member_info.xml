@@ -46,9 +46,21 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingTop="12dp"
-            android:paddingBottom="32dp">
+            android:orientation="vertical">
+
+            <!-- 骨架屏：资料/群属性请求回来之前只显示它，避免"先渲染一版再跳变" -->
+            <include
+                android:id="@+id/miSkeleton"
+                layout="@layout/activity_member_info_skeleton" />
+
+            <LinearLayout
+                android:id="@+id/miContent"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingTop="12dp"
+                android:paddingBottom="32dp"
+                android:visibility="gone">
 
             <!-- 卡片一：头像 + 昵称 + 身份 -->
             <LinearLayout
@@ -81,17 +93,43 @@
                         android:textColor="#E8577B"
                         android:textSize="28sp"
                         android:visibility="gone" />
+
+                    <!-- 等级角标：叠在头像右下角（level=0 也显示） -->
+                    <TextView
+                        android:id="@+id/miLevelChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="18dp"
+                        android:layout_gravity="end|bottom"
+                        android:background="@drawable/bg_profile_level"
+                        android:gravity="center"
+                        android:minWidth="30dp"
+                        android:paddingStart="6dp"
+                        android:paddingEnd="6dp"
+                        android:text=""
+                        android:textColor="#FFFFFF"
+                        android:textSize="10sp"
+                        android:visibility="gone" />
                 </FrameLayout>
 
-                <TextView
-                    android:id="@+id/miNickValue"
+                <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="14dp"
-                    android:text=""
-                    android:textColor="#111111"
-                    android:textSize="18sp"
-                    android:textStyle="bold" />
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/miNickValue"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:maxWidth="240dp"
+                        android:ellipsize="end"
+                        android:singleLine="true"
+                        android:text=""
+                        android:textColor="#111111"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
 
                 <LinearLayout
                     android:id="@+id/miIdentityRow"
@@ -112,6 +150,42 @@
                         android:textColor="#F0A020"
                         android:textSize="12sp" />
                 </LinearLayout>
+            </LinearLayout>
+
+            <!-- 卡片二：拥有社群（横向滑动；接口返回创建或加入的社群，不含临时群） -->
+            <LinearLayout
+                android:id="@+id/miCommunitiesCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_marginTop="12dp"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_member_card"
+                android:orientation="vertical"
+                android:paddingStart="15dp"
+                android:paddingEnd="15dp"
+                android:paddingBottom="16dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:gravity="center_vertical"
+                    android:text="拥有社群"
+                    android:textColor="#111111"
+                    android:textSize="16sp" />
+
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:id="@+id/miCommunitiesRow"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal" />
+                </HorizontalScrollView>
             </LinearLayout>
 
             <!-- 卡片二：资料明细 -->
@@ -211,28 +285,13 @@
                     android:layout_height="0.5dp"
                     android:background="#F0F0F0" />
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="56dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="用户等级"
-                        android:textColor="#666666"
-                        android:textSize="15sp" />
-
-                    <TextView
-                        android:id="@+id/miLevelValue"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:gravity="end"
-                        android:textColor="#111111"
-                        android:textSize="15sp" />
-                </LinearLayout>
+                <!-- 用户等级：已移到顶部卡片做成 LV 徽章（对齐 uniapp profile.vue），这里不再重复展示；
+                     仍保留 miLevelValue 这个 id（设为 gone）以免代码里的引用失效 -->
+                <TextView
+                    android:id="@+id/miLevelValue"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:visibility="gone" />
 
                 <View
                     android:layout_width="match_parent"
@@ -366,6 +425,42 @@
                 android:textColor="#FA5151"
                 android:textSize="16sp"
                 android:visibility="gone" />
+
+            <!-- 底部操作区：发消息（主）；添加/删除好友（次，好友状态接口回来后才显示） -->
+            <LinearLayout
+                android:id="@+id/miActions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_marginTop="24dp"
+                android:layout_marginEnd="12dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/miChatBtn"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:background="@drawable/bg_profile_btn_primary"
+                    android:gravity="center"
+                    android:text="发消息"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp" />
+
+                <!-- 是否好友由接口决定：返回前整体隐藏，避免先显示「添加好友」再跳成「删除好友」 -->
+                <TextView
+                    android:id="@+id/miFriendBtn"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="12dp"
+                    android:background="@drawable/bg_profile_btn_secondary"
+                    android:gravity="center"
+                    android:text=""
+                    android:textColor="#333333"
+                    android:textSize="16sp"
+                    android:visibility="gone" />
+            </LinearLayout>
+            </LinearLayout>
         </LinearLayout>
     </ScrollView>
 </LinearLayout>

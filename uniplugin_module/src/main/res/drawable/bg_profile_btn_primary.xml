@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 个人信息页主按钮（发消息）：紫→粉渐变胶囊，对齐 uniapp profile.vue 的 #9079f9 → #e78af2 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="44dp" />
+    <gradient
+        android:angle="0"
+        android:startColor="#9079F9"
+        android:endColor="#E78AF2"
+        android:type="linear" />
+</shape>

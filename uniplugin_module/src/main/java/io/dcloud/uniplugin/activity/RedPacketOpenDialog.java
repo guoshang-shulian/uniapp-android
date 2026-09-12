@@ -15,6 +15,7 @@ import android.content.ContextWrapper;
 import android.view.ContextThemeWrapper;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.animation.LinearInterpolator;
@@ -85,6 +86,33 @@ public class RedPacketOpenDialog extends Dialog {
                 + " decorVisible=" + (decor != null && decor.getVisibility() == View.VISIBLE)
                 + " w=" + (decor == null ? -1 : decor.getWidth())
                 + " h=" + (decor == null ? -1 : decor.getHeight()));
+            // ★ 诊断：窗口到底有没有铺到状态栏（"状态栏没被遮罩"的判断依据）
+            //   decorTop=0 且 decorHeight≈屏高 → 窗口铺满，遮罩应该能盖住状态栏
+            //   decorTop>0（≈状态栏高度）→ 窗口被限制在状态栏之下，遮罩天然到不了
+            if (decor != null) {
+                final View d = decor;
+                d.post(() -> {
+                    int[] loc = new int[2];
+                    d.getLocationOnScreen(loc);
+                    android.util.DisplayMetrics dm = d.getResources().getDisplayMetrics();
+                    android.graphics.Rect wf = new android.graphics.Rect();
+                    try {
+                        if (dialog.getWindow() != null) {
+                            dialog.getWindow().getDecorView().getWindowVisibleDisplayFrame(wf);
+                        }
+                    } catch (Exception ignored) {
+                    }
+                    Log.i(TAG, "GEOM decorTopOnScreen=" + loc[1]
+                        + " decorH=" + d.getHeight()
+                        + " screenH=" + dm.heightPixels
+                        + " screenW=" + dm.widthPixels
+                        + " visibleFrameTop=" + wf.top
+                        + " sysBarInsetTop=" + systemStatusBarHeight(d)
+                        + " statusBarColor=0x"
+                        + Integer.toHexString(
+                            dialog.getWindow() == null ? 0 : dialog.getWindow().getStatusBarColor()));
+                });
+            }
         } catch (Exception e) {
             Log.e(TAG, "show fail", e);
             Toast.makeText(host, "打开红包失败：" + e.getMessage(), Toast.LENGTH_LONG).show();
@@ -168,8 +196,12 @@ public class RedPacketOpenDialog extends Dialog {
         View contentRoot = rootView == null ? null : (View) rootView.getParent();
         final View statusMask = findViewById(R.id.rpStatusBarMask);
         if (statusMask != null) {
-            // 用真实 inset 决定补多高：窗口若已铺到状态栏之下 → inset 为 0，色带自动隐藏；
-            // 窗口被限制在状态栏之下（部分 ROM/Dialog 场景）→ 补一条同色遮罩，视觉上连成一片。
+            // ── 状态栏遮罩的真实几何（2026-09-12 用日志量出来的）──
+            //   decorTopOnScreen=147 / decorH=3053 / screenH=3053
+            //   即：窗口顶边落在屏幕 y=147（= 状态栏高度），而窗口内容高度是全屏。
+            //   所以遮罩虽然在窗口内 y=0，画到屏幕上却在 y=147 —— 状态栏底下露出的是正常内容，
+            //   色带反而成了一条多余的深色条。
+            //   → 必须按"窗口顶边偏移"把遮罩**反向平移**，才能落到屏幕 y=0 盖住状态栏。
             final View attach = contentRoot == null ? statusMask : contentRoot;
             attach.setOnApplyWindowInsetsListener((v, insets) -> {
                 int top;
@@ -180,16 +212,18 @@ public class RedPacketOpenDialog extends Dialog {
                 }
                 if (top > 0) {
                     applyStatusBarMaskHeight(statusMask, top);
+                    alignMaskToScreenTop(statusMask, attach);
                 }
                 return insets;
             });
-            // 兜底：attach 所在的窗口若不在状态栏之下，inset 恒为 0（实测 decor bounds 从状态栏下方开始），
-            // 此时直接用量出来的系统状态栏高度补色带。
+            // 兜底：inset 拿不到时用量出来的系统状态栏高度补色带
             attach.post(() -> {
                 if (statusMask.getLayoutParams() != null && statusMask.getLayoutParams().height > 0) {
+                    alignMaskToScreenTop(statusMask, attach);
                     return;
                 }
                 applyStatusBarMaskHeight(statusMask, systemStatusBarHeight(attach));
+                alignMaskToScreenTop(statusMask, attach);
             });
             attach.requestApplyInsets();
         }
@@ -199,6 +233,33 @@ public class RedPacketOpenDialog extends Dialog {
         ImageView avatar = findViewById(R.id.rpSenderAvatar);
         if (!TextUtils.isEmpty(senderAvatar)) {
             Glide.with(avatar.getContext()).load(senderAvatar).circleCrop().into(avatar);
+        }
+
+        // ★ 诊断二：卡片与左右内阴影的真实尺寸/位置 + 是否真的套上了背景
+        //   （"红箭头处有一块颜色较深的元素"要靠这组数据定位，别再靠猜）
+        View card = findViewById(R.id.rpCard);
+        if (card != null) {
+            card.post(() -> {
+                int[] cl = new int[2];
+                card.getLocationOnScreen(cl);
+                Log.i(TAG, "CARD x=" + cl[0] + " y=" + cl[1]
+                    + " w=" + card.getWidth() + " h=" + card.getHeight());
+                ViewParent vp = card.getParent();
+                if (vp instanceof ViewGroup) {
+                    ViewGroup parent = (ViewGroup) vp;
+                    for (int i = 0; i < parent.getChildCount(); i++) {
+                        View ch = parent.getChildAt(i);
+                        int[] l = new int[2];
+                        ch.getLocationOnScreen(l);
+                        Log.i(TAG, "CARDCHILD#" + i + " cls=" + ch.getClass().getSimpleName()
+                            + " x=" + l[0] + " y=" + l[1]
+                            + " w=" + ch.getWidth() + " h=" + ch.getHeight()
+                            + " bg=" + (ch.getBackground() == null
+                                ? "null" : ch.getBackground().getClass().getSimpleName())
+                            + " vis=" + ch.getVisibility());
+                    }
+                }
+            });
         }
 
         findViewById(R.id.rpCloseBtn).setOnClickListener(v -> dismiss());
@@ -294,6 +355,43 @@ public class RedPacketOpenDialog extends Dialog {
             mask.setLayoutParams(lp);
             Log.i(TAG, "status bar mask height=" + height);
         }
+    }
+
+    /**
+     * 把状态栏遮罩对齐到**屏幕顶边**。
+     *
+     * <p>本页实测：Dialog 窗口顶边不在屏幕 y=0，而在 y=147（状态栏高度）。
+     * 遮罩是窗口内容的一部分，所以它的屏幕位置 = 窗口顶边 + 自身 y。
+     * 想要它盖住状态栏，必须把窗口顶边那段偏移"反补"回去：
+     * {@code translationY = -窗口顶边在屏幕上的 Y}。
+     *
+     * <p>用 decor 的位置来算而不是写死状态栏高度 —— 偏移量可能等于状态栏高度，
+     * 也可能因 ROM 不同而不同，量出来最稳。
+     */
+    private void alignMaskToScreenTop(final View mask, final View anchor) {
+        if (mask == null || anchor == null) {
+            return;
+        }
+        anchor.post(() -> {
+            try {
+                View decor = getWindow() == null ? null : getWindow().getDecorView();
+                if (decor == null) {
+                    return;
+                }
+                int[] loc = new int[2];
+                decor.getLocationOnScreen(loc);
+                float shift = -loc[1];
+                if (mask.getTranslationY() != shift) {
+                    mask.setTranslationY(shift);
+                    Log.i(TAG, "status mask aligned: decorTop=" + loc[1]
+                        + " translationY=" + shift
+                        + " maskH=" + (mask.getLayoutParams() == null
+                            ? -1 : mask.getLayoutParams().height));
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "alignMaskToScreenTop fail: " + e);
+            }
+        });
     }
 
     /** 系统状态栏高度（不依赖窗口 inset：Dialog 窗口可能整体位于状态栏之下） */

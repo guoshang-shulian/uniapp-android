@@ -34,8 +34,6 @@ import io.dcloud.uniplugin.others.RedPacketApi;
  * 大椭圆封面 + 发送信息 + 金额 + 已领列表（头像/昵称/积分/时间/手气最佳）。
  */
 public class RedPacketDetailActivity extends android.app.Activity {
-
-    private static final boolean NATIVE_MOCK = false;
     private static final String RED_PACKET_BG =
         "https://app.gdmlmh.cn/static/images/red/red_bg.jpg"; // 与 uniapp envelope_receive 同源封面
 
@@ -141,41 +139,6 @@ public class RedPacketDetailActivity extends android.app.Activity {
     }
 
     private void loadDetail() {
-        if (NATIVE_MOCK) {
-            JSONObject mock = new JSONObject();
-            mock.put("redPacketId", redPacketId);
-            mock.put("type", "fortune");
-            mock.put("totalPoints", 100);
-            mock.put("unitPoints", 33.33);
-            mock.put("count", 3);
-            mock.put("toUserId", "");
-            mock.put("toUserName", "");
-            mock.put("remark", "恭喜发财，大吉大利");
-            mock.put("status", "active");
-            mock.put("drawCount", 1);
-            mock.put("myDrawPoints", 0.0);
-            mock.put("expireAt", System.currentTimeMillis() + 86400L * 1000);
-
-            JSONArray drawList = new JSONArray();
-            JSONObject u1 = new JSONObject();
-            u1.put("userId", "105974");
-            u1.put("userName", "明天会更好");
-            u1.put("avatarUrl", "https://tse4-mm.cn.bing.net/th/id/OIP-C.NimIzUOhgk2QHjPwRE0Q8gHaE5?rs=1&pid=ImgDetMain");
-            u1.put("points", 0.01);
-            u1.put("createTime", "2024-07-29 14:01:04");
-            JSONObject u2 = new JSONObject();
-            u2.put("userId", "87253");
-            u2.put("userName", "复兴中华");
-            u2.put("avatarUrl", "https://img.zcool.cn/community/014cdd5a96ba16a801219586209ded.png@1280w_1l_2o_100sh.png");
-            u2.put("points", 99.99);
-            u2.put("createTime", "2024-07-29 14:01:05");
-            drawList.add(u1);
-            drawList.add(u2);
-            mock.put("drawList", drawList);
-
-            renderDetail(mock);
-            return;
-        }
         RedPacketApi.detail(redPacketId, conversationId,
             new RedPacketApi.Callback() {
                 @Override
@@ -367,17 +330,6 @@ public class RedPacketDetailActivity extends android.app.Activity {
 
     private void draw() {
         if (detail == null || !isDrawable()) {
-            return;
-        }
-        if (NATIVE_MOCK) {
-            JSONObject result = new JSONObject();
-            result.put("redPacketId", redPacketId);
-            result.put("points", 33.33);
-            result.put("isLast", false);
-            result.put("status", "active");
-            result.put("remainCount", 1);
-            result.put("remainPoints", 66.67);
-            onDrawn(result);
             return;
         }
         JSONObject params = new JSONObject();

@@ -129,6 +129,116 @@ public class ZIMKitActivityUtils {
     }
 
     /**
+     * 原生页所在的包前缀。**必须两套都列**，这是「少关一层」的根因所在：
+     * <ul>
+     *   <li>{@code com.zegocloud.zimkit} —— ZIMKit 聊天页 / 群设置页 / 群成员列表页；</li>
+     *   <li>{@code io.dcloud.uniplugin} —— 本项目自己的原生页。成员资料页的两条入口里，
+     *       {@code memberpicker.GroupMembersActivity}（uniapp 调 openGroupMembers 打开）就属于这一包。
+     *       只关 ZIMKit 的话，用户从「群成员页 → 成员资料」走，点完店铺会停在群成员页，
+     *       必须再手动返回一次才能看到 uniapp 的店铺首页。</li>
+     * </ul>
+     */
+    private static final String[] NATIVE_PAGE_PREFIXES = {
+        "com.zegocloud.zimkit",
+        "io.dcloud.uniplugin",
+    };
+
+    /** uniapp 容器（**绝不能 finish**，关掉它整个 App 就退出了） */
+    private static final String[] CONTAINER_CLASSES = {
+        "io.dcloud.PandoraEntry",
+        "io.dcloud.PandoraEntryActivity",
+    };
+
+    /**
+     * 关闭压在 uniapp 之上的**所有原生页**（用于"原生页 → uniapp 页面"的跳转）。
+     *
+     * <p>场景：任何"原生页压着 uniapp"的时候（群设置页 / 群成员页 / 聊天页 / 成员资料页），
+     * uniapp 侧即使执行了 navigateTo，用户也**看不到**跳转结果 —— 必须先把原生页**全部**关掉，
+     * uniapp 才会露出来。否则用户感受就是"点了没反应"或"还要手动返回一次"。
+     *
+     * <p>安全性：按 {@link #NATIVE_PAGE_PREFIXES} 前缀匹配 + 排除 uniapp 容器，
+     * **绝不动** {@code io.dcloud.PandoraEntry*} 以及其它第三方页面。
+     *
+     * @param exclude 额外排除的类（例如调用方自己，想最后再 finish）
+     * @return 实际关闭的数量
+     */
+    public static int finishNativePages(Class<?>... exclude) {
+        if (activityList == null || activityList.isEmpty()) {
+            return 0;
+        }
+        int count = 0;
+        // 拷贝一份再遍历：finish() 会触发 onActivityDestroyed 回调改动 activityList
+        List<Activity> snapshot = new ArrayList<>(activityList);
+        for (Activity activity : snapshot) {
+            if (!isActivityAlive(activity)) {
+                continue;
+            }
+            ComponentName cn = activity.getComponentName();
+            if (cn == null || cn.getClassName() == null) {
+                continue;
+            }
+            String name = cn.getClassName();
+            if (!isNativePage(name)) {
+                continue;   // 容器 / 第三方页面 → 不碰
+            }
+            if (isExcluded(name, exclude)) {
+                continue;
+            }
+            activity.finish();
+            count++;
+        }
+        return count;
+    }
+
+    /** 是否属于"我们的原生页"（前缀命中且不是 uniapp 容器） */
+    private static boolean isNativePage(String className) {
+        for (String container : CONTAINER_CLASSES) {
+            if (container.equals(className)) {
+                return false;
+            }
+        }
+        for (String prefix : NATIVE_PAGE_PREFIXES) {
+            if (className.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 当前存活的原生页类名（排查"关不干净"用：日志里能看到到底还剩哪一层）。
+     * 仅用于诊断，不影响行为。
+     */
+    public static String describeAliveActivities() {
+        if (activityList == null || activityList.isEmpty()) {
+            return "(activityList empty)";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (Activity activity : new ArrayList<>(activityList)) {
+            if (!isActivityAlive(activity) || activity.getComponentName() == null) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append(" | ");
+            }
+            sb.append(activity.getComponentName().getClassName());
+        }
+        return sb.length() == 0 ? "(none alive)" : sb.toString();
+    }
+
+    private static boolean isExcluded(String activityName, Class<?>[] exclude) {
+        if (exclude == null) {
+            return false;
+        }
+        for (Class<?> c : exclude) {
+            if (c != null && c.getName().equals(activityName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Destroy all activities
      */
     public static void finishAll() {

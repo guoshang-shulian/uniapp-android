@@ -74,6 +74,57 @@ public class ZIMKitEventHandler extends ZIMEventHandler {
         }
     }
 
+    /**
+     * 群资料（群名/群头像）变更回调。
+     *
+     * <p>为什么需要：`updateGroupName` / `updateGroupAvatarUrl` 成功只代表**服务端群资料**改了，
+     * ZIM **不会**自动把新的群名/头像写回本地已有的会话对象（`ZIMConversation.conversationName`
+     * / `conversationAvatarUrl`）。结果就是「群设置页显示新头像，会话列表还是旧的/首字方块」。
+     * 这里把变更广播出去，让 TestModule 重新拉一次会话列表 + 群资料并合并后重推 uniapp。
+     */
+    public interface GroupProfileCallback {
+        void onGroupProfileChanged(String groupID);
+    }
+
+    private static GroupProfileCallback mGroupProfileListener;
+
+    public static void setGroupProfileCallback(GroupProfileCallback listener) {
+        mGroupProfileListener = listener;
+    }
+
+    private static void notifyGroupProfileChanged(String groupID) {
+        if (mGroupProfileListener != null) {
+            try {
+                mGroupProfileListener.onGroupProfileChanged(groupID);
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    /**
+     * 供 zimkit 内部主动触发群资料变更通知（不依赖 ZIM 事件）。
+     * <p>场景：本地调用 {@code updateGroupAvatarUrl} / {@code updateGroupName} 成功后，
+     * ZIM 不一定回调 {@code onGroupAvatarUrlUpdated}；但上层（TestModule）需要立刻刷新
+     * 「群头像覆盖表」并重推 uniapp 会话列表，否则列表头像不会变。
+     */
+    public static void notifyGroupProfileChangedFromLocal(String groupID) {
+        notifyGroupProfileChanged(groupID);
+    }
+
+    @Override
+    public void onGroupNameUpdated(ZIM zim, String groupName, ZIMGroupOperatedInfo operatedInfo,
+        String groupID) {
+        super.onGroupNameUpdated(zim, groupName, operatedInfo, groupID);
+        notifyGroupProfileChanged(groupID);
+    }
+
+    @Override
+    public void onGroupAvatarUrlUpdated(ZIM zim, String groupAvatarUrl, ZIMGroupOperatedInfo operatedInfo,
+        String groupID) {
+        super.onGroupAvatarUrlUpdated(zim, groupAvatarUrl, operatedInfo, groupID);
+        notifyGroupProfileChanged(groupID);
+    }
+
     private  String groupId;
 
     public static void setOnNativeDataListener(CallCallback listener) {

@@ -23,7 +23,10 @@
         android:layout_gravity="top"
         android:background="#80000000" />
 
+    <!-- 遮罩层：铺满整屏的半透明黑。既负责"变暗"，也负责"点空白处关闭弹窗"
+         （全屏 Activity 方案下，遮罩能真正盖住状态栏，所以 rpStatusBarMask 高度恒为 0） -->
     <FrameLayout
+        android:id="@+id/rpMaskLayer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#80000000">

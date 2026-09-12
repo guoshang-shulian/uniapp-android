@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  红包弹窗上半区（Figma 5339:6593 / docs/红包上半部分.svg 原样搬运）
+  红包弹窗上半区（Figma 5339:6593 原样搬运）
   578×769px → 289×384.5dp；底边为弧线：两端 y≈709px(354.5dp)，中间最低 769px(384.5dp)
   内阴影 x0 y0 blur4 #000000@20% → 用叠层渐变近似（见 activity_red_packet_open.xml）
 -->

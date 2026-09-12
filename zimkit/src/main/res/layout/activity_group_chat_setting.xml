@@ -89,7 +89,8 @@
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingStart="15dp"
-        android:paddingEnd="9dp">
+        android:paddingEnd="9dp"
+        android:visibility="gone">
 
         <TextView
           android:layout_width="0dp"
@@ -120,7 +121,52 @@
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:layout_marginStart="16dp"
-        android:background="@color/color_e6e6e6" />
+        android:background="@color/color_e6e6e6"
+        android:visibility="gone" />
+
+      <!-- 群聊头像（仅群主可见可改）：右侧显示当前头像缩略图，点击选图并上传。
+           默认 gone：等群属性(bizType)回来判定后再决定显隐，避免社群频道"先冒出来再消失" -->
+      <LinearLayout
+        android:id="@+id/group_avatar_row"
+        android:layout_width="match_parent"
+        android:layout_height="54dp"
+        android:background="?selectableItemBackground"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="15dp"
+        android:paddingEnd="9dp"
+        android:visibility="gone">
+
+        <TextView
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_weight="1"
+          android:text="群聊头像"
+          android:textColor="@color/color_2a2a2a"
+          android:textSize="15sp" />
+
+        <ImageView
+          android:id="@+id/group_avatar_thumb"
+          android:layout_width="36dp"
+          android:layout_height="36dp"
+          android:layout_marginEnd="7dp"
+          android:contentDescription="群聊头像"
+          android:scaleType="centerCrop" />
+
+        <ImageView
+          android:layout_width="16dp"
+          android:layout_height="16dp"
+          android:src="@drawable/zimkit_icon_group_item_next"
+          android:contentDescription="修改群聊头像" />
+      </LinearLayout>
+
+      <View
+        android:id="@+id/chat_setting_divider_avatar"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginStart="16dp"
+        android:background="@color/color_e6e6e6"
+        android:visibility="gone" />
 
       <!-- 群二维码（点击 → 群二维码页：二维码 + 群ID + 复制） -->
       <LinearLayout

@@ -4,7 +4,6 @@ import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
-import android.widget.ImageView;
 import androidx.annotation.NonNull;
 import androidx.databinding.DataBindingUtil;
 import androidx.databinding.ViewDataBinding;
@@ -13,7 +12,6 @@ import com.zegocloud.zimkit.BR;
 import com.zegocloud.zimkit.R;
 import com.zegocloud.zimkit.components.message.adapter.ZIMKitInputMoreAdapter.InputMoreItemViewHolder;
 import com.zegocloud.zimkit.components.message.model.ZIMKitInputButtonModel;
-import com.zegocloud.zimkit.services.config.ZIMKitInputButtonName;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -33,15 +31,12 @@ public class ZIMKitInputMoreAdapter extends RecyclerView.Adapter<InputMoreItemVi
     @Override
     public void onBindViewHolder(@NonNull InputMoreItemViewHolder holder, int position) {
         holder.bind(BR.model, itemModels.get(position));
-        ZIMKitInputButtonModel model = itemModels.get(position);
-        // 微信式“红包”按钮：去掉白底方块，红包装直接呈现在灰底上（与微信“+”面板一致）
-        if (model != null && model.getButtonName() == ZIMKitInputButtonName.RED_PACKET) {
-            ImageView icon = holder.itemView.findViewById(R.id.iv_more_icon);
-            if (icon != null) {
-                icon.setBackground(null);
-                icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            }
-        }
+        // 说明：这里**不再**对红包按钮做特殊处理。
+        // 早先为了让红包"直接呈现在灰底上"（仿微信「+」面板），曾把它的白底去掉
+        // （icon.setBackground(null)），结果红包成了整个面板里唯一没有白色方块底的按钮，
+        // 而且 48dp 的图标在 52dp 容器里几乎铺满，视觉上比旁边大一圈。
+        // 现在统一：所有按钮都用 zimkit_item_input_more 的 52dp 白底 + 12dp 圆角，
+        // 红包图标本身在 drawable 里缩到 32dp（见 zimkit_ic_red_packet.xml），口径一致。
     }
 
     @Override

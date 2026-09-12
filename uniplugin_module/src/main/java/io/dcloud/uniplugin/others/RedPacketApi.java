@@ -81,6 +81,48 @@ public class RedPacketApi {
             request(buildRequest(url, readyToken, safeBody, false), url, safeBody, false, callback, 0), callback);
     }
 
+    /** DELETE（无 body）：删好友等。与 get/post 共用 token 闸门 + 401 刷新重放 */
+    public static void delete(String url, JSONObject query, Callback callback) {
+        StringBuilder sb = new StringBuilder(url);
+        if (query != null) {
+            sb.append("?");
+            boolean first = true;
+            for (String key : query.keySet()) {
+                if (!first) {
+                    sb.append("&");
+                }
+                sb.append(key).append("=").append(encode(query.getString(key)));
+                first = false;
+            }
+        }
+        final String u = sb.toString();
+        whenTokenReady(readyToken -> {
+            Request request = new Request.Builder()
+                .url(signedUrl(u, readyToken))
+                .addHeader("accessToken", readyToken == null ? "" : readyToken)
+                .addHeader("Authorization", "Bearer " + (readyToken == null ? "" : readyToken))
+                .addHeader("uuid", randomUuid())
+                .delete()
+                .build();
+            request(request, u, null, false, callback, 0);
+        }, callback);
+    }
+
+    /** PUT（JSON body）：更新临时群资料等。与 get/post 共用 token 闸门 + 401 刷新重放 */
+    public static void put(String url, JSONObject body, Callback callback) {
+        JSONObject safeBody = body == null ? new JSONObject() : body;
+        whenTokenReady(readyToken -> {
+            Request request = new Request.Builder()
+                .url(signedUrl(url, readyToken))
+                .addHeader("accessToken", readyToken == null ? "" : readyToken)
+                .addHeader("Authorization", "Bearer " + (readyToken == null ? "" : readyToken))
+                .addHeader("uuid", randomUuid())
+                .put(RequestBody.create(safeBody.toJSONString(), JSON_MEDIA_TYPE))
+                .build();
+            request(request, url, safeBody, false, callback, 0);
+        }, callback);
+    }
+
     private static String encode(String value) {
         try {
             return java.net.URLEncoder.encode(value == null ? "" : value, "UTF-8");

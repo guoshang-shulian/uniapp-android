@@ -34,6 +34,7 @@ import androidx.recyclerview.widget.RecyclerView.ViewHolder;
 import com.bumptech.glide.Glide;
 import com.zegocloud.zimkit.R;
 import com.zegocloud.zimkit.common.ZIMKitConstant;
+import com.zegocloud.zimkit.common.utils.ZIMKitCheckDoubleClick;
 import com.zegocloud.zimkit.common.utils.ZIMKitToastUtils;
 import com.zegocloud.zimkit.components.group.bean.ZIMKitGroupMemberInfo;
 import com.zegocloud.zimkit.components.group.ui.ZIMKitGroupMembersActivity;
@@ -77,6 +78,13 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
     private static final String TAG = "ZIMKitGroupChatSettingA";
     private ZIMKitDelegate zimKitDelegate;
 
+    /**
+     * 是否是社群频道（ZIM 群属性 bizType=community）。
+     * 社群频道连群主都不显示「群聊名称 / 群聊头像」—— 名称和头像归社群管理页维护，频道只读跟随。
+     * 这个标记要在 {@link #applyOwnerOnlyRows()} 里一起判，否则成员名单异步回来时会把刚藏掉的行又显出来。
+     */
+    private boolean isCommunityChannel = false;
+
     private static ZIMKitGroupChatSettingActivity sInstance;
 
     /** 退出群聊成功后一键回到社群首页（uniplugin 调用） */
@@ -97,6 +105,10 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
         if (chatSetting != null) {
             chatSetting.setVisibility(View.VISIBLE);
         }
+        // 「邀请/踢出」快捷项默认不画：它们的显隐取决于群属性(bizType)，而 bizType 是异步查的。
+        // 若按适配器默认值(true)先画出来，社群频道会出现"先冒出来、随后又消失"的跳变。
+        // ⚠️ 必须在 shortcutAdapter 创建之后调用（之前放在这里导致 NPE 崩溃：
+        //    "setShowInvite on a null object reference" —— 2026-09-12 14:24 抓到的 FATAL）
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
@@ -113,6 +125,13 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
         //        binding.groupChatMembersShortcut.setAdapter();
         GroupMemberShortcutAdapter shortcutAdapterLocal = new GroupMemberShortcutAdapter();
         shortcutAdapter = shortcutAdapterLocal;
+        // 适配器创建后再关掉「邀请/踢出」：等 bizType 回来按类型决定是否显示（防闪）
+        shortcutAdapter.setShowInvite(false);
+        shortcutAdapter.setShowKick(false);
+        // 立刻把适配器挂上去：refreshGroupMembers() 是异步查询，回调里会操作 shortcutAdapter，
+        // 若 setAdapter 放在后面（原 L256），存在"回调先于挂载"的时序风险。
+        binding.groupChatMembersRecyclerview.setAdapter(shortcutAdapter);
+        binding.groupChatMembersRecyclerview.setLayoutManager(new GridLayoutManager(this, 5));
         List<ZIMKitGroupMemberInfo> groupMemberList = ZIMKitCore.getInstance().getGroupMemberList(mId);
         if (groupMemberList != null) {
             binding.groupMembersCount.setText(getString(R.string.group_members_detail, groupMemberList.size()));
@@ -147,6 +166,20 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
                     if (groupNameValue != null) {
                         groupNameValue.setText(title);
                     }
+                    // 群聊头像缩略图：优先群资料，其次会话头像（有的群只有会话上带了头像）
+                    ImageView avatarThumb = findViewById(R.id.group_avatar_thumb);
+                    if (avatarThumb != null) {
+                        String avatarUrl = info.getAvatarUrl();
+                        if (avatarUrl == null || avatarUrl.isEmpty()) {
+                            ZIMKitConversation selfConv = ZIMKitCore.getInstance().getZIMKitConversation(mId);
+                            if (selfConv != null && selfConv.getZimConversation() != null) {
+                                avatarUrl = selfConv.getZimConversation().conversationAvatarUrl;
+                            }
+                        }
+                        if (avatarUrl != null && !avatarUrl.isEmpty()) {
+                            Glide.with(ZIMKitGroupChatSettingActivity.this).load(avatarUrl).into(avatarThumb);
+                        }
+                    }
                 }
             }
         });
@@ -170,11 +203,15 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
         });
 
         refreshGroupMembers();
-        // 社群频道：隐藏「退出群聊」（退出社群=退社群+删聊天，在社群管理页操作）+ 隐藏二维码相关
+        // 群属性(bizType)回来前，「群聊名称 / 群聊头像 / 邀请 / 踢出」全部保持隐藏（XML 默认 gone、
+        // 适配器默认已关）→ 社群频道不会出现"先冒出来再消失"的跳变；
+        // 普通群聊会晚一瞬出现（约 100~300ms），这是不闪的代价。
         try {
             ZIMKitCore.getInstance().zim().queryGroupAllAttributes(mId, (g, attrs, e) -> {
-                if (attrs != null && "community".equals(attrs.get("bizType"))) {
-                    runOnUiThread(() -> {
+                boolean community = attrs != null && "community".equals(attrs.get("bizType"));
+                isCommunityChannel = community;
+                runOnUiThread(() -> {
+                    if (community) {
                         View exitBtn = binding.getRoot().findViewById(R.id.exit_group_btn);
                         if (exitBtn != null) {
                             exitBtn.setVisibility(View.GONE);
@@ -221,13 +258,19 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
                         if (divider2c != null) {
                             divider2c.setVisibility(View.VISIBLE);
                         }
-                    });
-                }
+                    } else {
+                        // 普通群聊（含 2 人群聊）：显示「邀请 / 踢出」快捷项；
+                        // 「群聊名称 / 群聊头像」由 applyOwnerOnlyRows() 按群主身份决定
+                        shortcutAdapter.setShowInvite(true);
+                        shortcutAdapter.setShowKick(true);
+                        refreshGroupMembers();
+                    }
+                    // 两条路都要重判一次群主专属行（社群频道里它们恒隐藏）
+                    applyOwnerOnlyRows();
+                });
             });
         } catch (Exception ignored) {
         }
-        binding.groupChatMembersRecyclerview.setAdapter(shortcutAdapter);
-        binding.groupChatMembersRecyclerview.setLayoutManager(new GridLayoutManager(this, 5));
         binding.groupChatMembersRecyclerview.addOnItemTouchListener(
             new OnRecyclerViewItemTouchListener(binding.groupChatMembersRecyclerview) {
                 @Override
@@ -266,9 +309,14 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
             startActivity(intent);
         });
         // 群聊名称修改（ZIM updateGroupName，列表/聊天头同步）
+        // 权限：只有群主能看见「群聊名称」并修改（管理员也不行）
         View groupNameRow = binding.getRoot().findViewById(R.id.group_name_row);
         if (groupNameRow != null) {
             groupNameRow.setOnClickListener(v -> {
+                // 防抖：连点会连弹多个改名输入框
+                if (ZIMKitCheckDoubleClick.isFastDoubleClick(800)) {
+                    return;
+                }
                 TextView nameValue = findViewById(R.id.group_name_value);
                 String currentName = nameValue != null ? String.valueOf(nameValue.getText()) : "群聊";
                 android.widget.EditText input = new android.widget.EditText(ZIMKitGroupChatSettingActivity.this);
@@ -290,6 +338,19 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
                                     groupNameValue.setText(newName);
                                 }
                                 binding.groupSetTitleBar.setTitle(newName);
+                                // ① 本会话/其他成员的列表头像 → 通知上层刷新权威群资料覆盖表
+                                try {
+                                    com.zegocloud.zimkit.services.internal.ZIMKitEventHandler
+                                        .notifyGroupProfileChangedFromLocal(mId);
+                                } catch (Exception e) {
+                                    android.util.Log.w(TAG, "notifyGroupProfileChanged fail: "
+                                        + e.getMessage());
+                                }
+                                // ② 业务库回写（社群频道走社群管理接口，这里只处理临时群/群聊）
+                                if (!isCommunityChannel) {
+                                    com.zegocloud.zimkit.common.utils.GroupProfileApi
+                                        .pushToBackend(mId, newName, null);
+                                }
                             } else {
                                 com.zegocloud.zimkit.common.utils.ZIMKitToastUtils.showToast(
                                     err == null ? "修改失败" : err.message);
@@ -301,10 +362,28 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
             });
         }
 
+        // 群聊头像（新增）：同样只有群主可见可改；改完走 ZIM updateGroupAvatarUrl
+        View groupAvatarRow = binding.getRoot().findViewById(R.id.group_avatar_row);
+        if (groupAvatarRow != null) {
+            // 防抖：连点会连续弹起选图（每次都要走裁剪/上传）
+            groupAvatarRow.setOnClickListener(v -> {
+                if (ZIMKitCheckDoubleClick.isFastDoubleClick(800)) {
+                    return;
+                }
+                pickGroupAvatar();
+            });
+        }
+        // 两个群主专属项的显隐统一在这里判（成员名单异步回来后会再判一次，见 refreshGroupMembers）
+        applyOwnerOnlyRows();
+
         // 群二维码：点击 → 桥回 uniapp 打开群二维码页（二维码 + 群ID + 复制）
         View groupQrRow = binding.getRoot().findViewById(R.id.group_qr_row);
         if (groupQrRow != null) {
             groupQrRow.setOnClickListener(v -> {
+                // 防抖：连点会连开多个二维码页
+                if (ZIMKitCheckDoubleClick.isFastDoubleClick(800)) {
+                    return;
+                }
                 String nameNow = "";
                 TextView nameValue = findViewById(R.id.group_name_value);
                 if (nameValue != null) {
@@ -331,9 +410,18 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
         View exitGroupBtn = binding.getRoot().findViewById(R.id.exit_group_btn);
         if (exitGroupBtn != null) {
             exitGroupBtn.setOnClickListener(v -> {
+                // 防抖：连点会连续发起"查属性+查成员+转让/解散"整串请求，必须拦
+                if (ZIMKitCheckDoubleClick.isFastDoubleClick(800)) {
+                    return;
+                }
+                // 文案按身份分两套：只有群主退出才涉及"转让群主"，普通成员/管理员不该看到那句
+                boolean amOwner = iAmGroupOwner();
+                String msg = amOwner
+                    ? "确定退出该群聊？群主退出后群主将交给管理员（入群最早者优先）"
+                    : "确定退出该群聊？";
                 new AlertDialog.Builder(ZIMKitGroupChatSettingActivity.this)
                     .setTitle("退出群聊")
-                    .setMessage("确定退出该群聊？群主退出后群主将交给管理员（入群最早者优先）")
+                    .setMessage(msg)
                     .setPositiveButton("确定", (d, w) -> {
                         if (com.zegocloud.zimkit.services.internal.GroupSettingBridge.getListener() != null) {
                             com.zegocloud.zimkit.services.internal.GroupSettingBridge.getListener().onExit(mId);
@@ -415,11 +503,175 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
         ZIMKit.unRegisterZIMKitDelegate(zimKitDelegate);
         if (sInstance == this) {
             sInstance = null;
         }
+        super.onDestroy();
+    }
+
+    /**
+     * 当前登录用户是否是这个群的群主（ZIM memberRole：1=群主）。
+     *
+     * <p>用途：群聊名称 / 群聊头像两个设置项**只有群主可见可改**（管理员不行）。
+     * 判定用本地成员列表，不发请求；列表是异步拉回来的，所以除了进页面时判一次，
+     * {@link #refreshGroupMembers()} 拉回新列表后会再判一次并刷新显隐（冷启动缓存未命中时也不会误藏）。
+     */
+    private boolean iAmGroupOwner() {
+        try {
+            String selfId = null;
+            com.zegocloud.zimkit.services.model.ZIMKitUser local = ZIMKitCore.getInstance().getLocalUser();
+            if (local != null) {
+                selfId = local.getId();
+            }
+            if (selfId == null || selfId.isEmpty()) {
+                return false;
+            }
+            List<ZIMKitGroupMemberInfo> members = ZIMKitCore.getInstance().getGroupMemberList(mId);
+            if (members == null) {
+                return false;
+            }
+            for (ZIMKitGroupMemberInfo info : members) {
+                if (info != null && selfId.equals(info.getId())) {
+                    // 直接读 ZIM 原始 memberRole（1=群主 2=管理员 3=成员）：
+                    // ZIMKit 的 GroupMemberRole 只有 OWNER/MEMBER，getFrom(2) 会抛异常，别用。
+                    return info.getRole() == com.zegocloud.zimkit.services.model.GroupMemberRole.OWNER;
+                }
+            }
+        } catch (Exception e) {
+            android.util.Log.w(TAG, "iAmGroupOwner check fail: " + e.getMessage());
+        }
+        return false;
+    }
+
+    // ── 群聊头像：选图 → 上传 → ZIM updateGroupAvatarUrl ──
+
+    private final androidx.activity.result.ActivityResultLauncher<Intent> avatarPicker =
+        registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() != RESULT_OK || result.getData() == null) {
+                    return;
+                }
+                android.net.Uri picked = result.getData().getData();
+                if (picked == null) {
+                    return;
+                }
+                // 相册返回的是 content:// ，先落到应用缓存目录拿到可用文件（与原生语音房选图同一做法）
+                java.io.File local = copyUriToCache(picked);
+                if (local == null) {
+                    ZIMKitToastUtils.showToast("读取图片失败");
+                    return;
+                }
+                uploadGroupAvatar(local);
+            });
+
+    /** 点击「群聊头像」：打开系统相册选一张图 */
+    private void pickGroupAvatar() {
+        if (!iAmGroupOwner()) {
+            ZIMKitToastUtils.showToast("只有群主可以修改群聊头像");
+            return;
+        }
+        try {
+            Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+            intent.setType("image/*");
+            avatarPicker.launch(Intent.createChooser(intent, "选择群聊头像"));
+        } catch (Exception e) {
+            ZIMKitToastUtils.showToast("无法打开相册：" + e.getMessage());
+        }
+    }
+
+    /** content:// → 应用缓存文件（上传需要真实文件路径） */
+    private java.io.File copyUriToCache(android.net.Uri uri) {
+        java.io.InputStream in = null;
+        java.io.FileOutputStream out = null;
+        try {
+            in = getContentResolver().openInputStream(uri);
+            if (in == null) {
+                return null;
+            }
+            java.io.File cache = new java.io.File(getCacheDir(), "group_avatar_" + System.currentTimeMillis() + ".jpg");
+            out = new java.io.FileOutputStream(cache);
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) != -1) {
+                out.write(buf, 0, n);
+            }
+            out.flush();
+            return cache;
+        } catch (Exception e) {
+            android.util.Log.w(TAG, "copyUriToCache fail: " + e.getMessage());
+            return null;
+        } finally {
+            try {
+                if (out != null) {
+                    out.close();
+                }
+            } catch (Exception ignored) {
+            }
+            try {
+                if (in != null) {
+                    in.close();
+                }
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    /** 上传图片 → 拿到 URL → 写回 ZIM 群头像（聊天头/会话列表随之更新） */
+    private void uploadGroupAvatar(java.io.File file) {
+        ZIMKitToastUtils.showToast("正在上传…");
+        com.zegocloud.zimkit.common.utils.MediaUploader.uploadImage(file,
+            new com.zegocloud.zimkit.common.utils.MediaUploader.Callback() {
+                @Override
+                public void onSuccess(String imageUrl) {
+                    if (imageUrl == null || imageUrl.isEmpty()) {
+                        runOnUiThread(() -> ZIMKitToastUtils.showToast("上传成功但未取到图片地址"));
+                        return;
+                    }
+                    updateGroupAvatarUrl(imageUrl);
+                }
+
+                @Override
+                public void onError(String message) {
+                    android.util.Log.w(TAG, "avatar upload fail: " + message);
+                    runOnUiThread(() -> ZIMKitToastUtils.showToast(
+                        message == null || message.isEmpty() ? "头像上传失败" : message));
+                }
+            });
+    }
+
+    private void updateGroupAvatarUrl(String url) {
+        ZIMKitCore.getInstance().zim().updateGroupAvatarUrl(url, mId, (gid, avatarUrl, err) -> {
+            boolean ok = err != null && err.code == ZIMErrorCode.SUCCESS;
+            if (ok) {
+                // ① 关键：改完立刻通知上层刷新「群头像覆盖表」（TestModule 注册的回调）。
+                // 不能只依赖 ZIM 的 onGroupAvatarUrlUpdated 事件 —— 本地发起的修改该事件不一定回调；
+                // 一旦不回调，覆盖表就永远是空的，uniapp 社群列表继续显示旧头像 / 首字方块。
+                try {
+                    com.zegocloud.zimkit.services.internal.ZIMKitEventHandler
+                        .notifyGroupProfileChangedFromLocal(mId);
+                } catch (Exception e) {
+                    android.util.Log.w(TAG, "notifyGroupProfileChanged fail: " + e.getMessage());
+                }
+                // ② 业务库回写：否则分享组件（读后端 avatar）永远显示旧头像。
+                // 社群频道不打这个接口 —— 社群头像走社群管理接口（POST /social/group/update）。
+                if (!isCommunityChannel) {
+                    com.zegocloud.zimkit.common.utils.GroupProfileApi
+                        .pushToBackend(mId, null, avatarUrl);
+                }
+            }
+            runOnUiThread(() -> {
+                if (ok) {
+                    ImageView thumb = findViewById(R.id.group_avatar_thumb);
+                    if (thumb != null) {
+                        Glide.with(ZIMKitGroupChatSettingActivity.this).load(avatarUrl).into(thumb);
+                    }
+                    ZIMKitToastUtils.showToast("群聊头像已更新");
+                } else {
+                    ZIMKitToastUtils.showToast(err == null ? "头像更新失败" : err.message);
+                }
+            });
+        });
     }
 
     /** 成员列表实时刷新（退群/拉人后立即更新，避免残留） */
@@ -436,11 +688,40 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
                             binding.groupMembersCount.setText(
                                 getString(R.string.group_members_detail, userList.size()));
                             shortcutAdapter.setMemberList(userList);
+                            // 名单到手后重新判定群主身份：本地缓存冷启动时可能没有自己，
+                            // 早判定会把群主的「群聊名称/群聊头像」误藏起来，这里补一次。
+                            applyOwnerOnlyRows();
                         });
                     }
+                    // 无论成败都置位：成员列表可能查不到，骨架不能因此卡住
                 }
             });
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+        }
+    }
+
+    /**
+     * 群主专属设置项（群聊名称 / 群聊头像）的显隐。管理员和普通成员都看不到，
+     * 所以判定条件是「我是群主」而不是「我是群主或管理员」。
+     */
+    private void applyOwnerOnlyRows() {
+        // 社群频道：连群主也不显示（名称/头像归社群管理页维护）
+        final boolean owner = !isCommunityChannel && iAmGroupOwner();
+        View nameRow = binding.getRoot().findViewById(R.id.group_name_row);
+        View nameDivider = binding.getRoot().findViewById(R.id.chat_setting_divider1);
+        View avatarRow = binding.getRoot().findViewById(R.id.group_avatar_row);
+        View avatarDivider = binding.getRoot().findViewById(R.id.chat_setting_divider_avatar);
+        if (nameRow != null) {
+            nameRow.setVisibility(owner ? View.VISIBLE : View.GONE);
+        }
+        if (nameDivider != null) {
+            nameDivider.setVisibility(owner ? View.VISIBLE : View.GONE);
+        }
+        if (avatarRow != null) {
+            avatarRow.setVisibility(owner ? View.VISIBLE : View.GONE);
+        }
+        if (avatarDivider != null) {
+            avatarDivider.setVisibility(owner ? View.VISIBLE : View.GONE);
         }
     }
 

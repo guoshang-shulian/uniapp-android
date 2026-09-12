@@ -195,7 +195,7 @@ public class ZIMKit {
     /**
      * 发送自定义卡片消息（商品卡/店铺卡/文章卡/红包卡）。
      *
-     * @param payload       卡片 JSON（见 docs/im-custom-message-contract.md）
+     * @param payload       卡片 JSON 字符串（字段结构由后端商品卡片接口给出，见 CardMessageContent）
      * @param subType       见 {@link ZIMKitMessageSubType}
      * @param conversationID 会话 ID
      * @param type          会话类型

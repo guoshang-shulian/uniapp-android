@@ -59,7 +59,7 @@ public class GroupBizTypeBridge extends ZIMEventHandler {
                                 // 升级完成
                             });
                             // 升级为群聊后，群名自动改为“群聊”（后续成员可再改名）
-                            zim.updateGroupName("群聊", groupID, (g4, newName, err4) -> {
+                            zim.updateGroupName("聊天", groupID, (g4, newName, err4) -> {
                             });
                         }
                     });

@@ -44,13 +44,36 @@
         <item name="android:windowExitAnimation">@anim/dialog_slide_out_bottom</item>
     </style>
 
-    <!-- 红包沉浸式弹窗：透明底 + 无标题 + 自带遮罩（避免用系统主题导致崩溃/黑屏） -->
+    <!-- 红包沉浸式弹窗（Dialog 版）：透明底 + 无标题 + 自带遮罩 -->
     <style name="RedPacketDialogTheme" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:backgroundDimEnabled">false</item>
         <item name="android:windowContentOverlay">@null</item>
+    </style>
+
+    <!--
+      红包沉浸式**全屏页**（RedPacketFullscreenActivity）专用主题。
+      与上面的 Dialog 版区别：
+        · windowIsFloating=false → 不是浮动窗口，窗口铺满整屏，遮罩才能真正盖住状态栏
+        · 背景全透明 → 露出下面宿主聊天页，视觉上仍是"弹窗压在上面"
+        · backgroundDimEnabled=false → 不用系统 dim（暗度由布局里的 #80000000 负责，避免双重变暗）
+      继承链用 MaterialComponents（同 AppTheme.UniPlugin.NoActionBar）：
+      平台默认主题在 MIUI 上会被强制替换成属性不全的 DeviceDefault → inflate 抛异常 → 白屏崩溃。
+    -->
+    <style name="RedPacketFullscreenTheme" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowAnimationStyle">@null</item>
     </style>
 
 </resources>
