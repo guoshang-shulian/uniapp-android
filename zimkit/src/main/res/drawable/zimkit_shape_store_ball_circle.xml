@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 社群店铺悬浮球内的渐变圆 40dp：Figma 3036:2517（80×80 @2x，线性渐变 #FFDFD2 → #FF7C46，圆角 50） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <gradient
+        android:startColor="#FFDFD2"
+        android:endColor="#FF7C46"
+        android:angle="270"
+        android:type="linear" />
+</shape>

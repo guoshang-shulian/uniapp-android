@@ -30,10 +30,12 @@ import com.zegocloud.zimkit.services.ZIMKitDelegate;
 import androidx.recyclerview.widget.RecyclerView;
 import com.zegocloud.zimkit.components.message.utils.OnRecyclerViewItemTouchListener;
 import com.zegocloud.zimkit.services.callback.InviteUsersToJoinGroupCallback;
+import com.zegocloud.zimkit.services.callback.QueryGroupMemberListCallback;
 import com.zegocloud.zimkit.services.internal.ZIMKitCore;
 import im.zego.zim.entity.ZIMError;
 import im.zego.zim.entity.ZIMErrorUserInfo;
 import im.zego.zim.entity.ZIMGroupMemberInfo;
+import im.zego.zim.entity.ZIMGroupMemberQueryConfig;
 import im.zego.zim.entity.ZIMGroupOperatedInfo;
 import im.zego.zim.enums.ZIMErrorCode;
 import im.zego.zim.enums.ZIMGroupMemberEvent;
@@ -109,9 +111,33 @@ public class ZIMKitGroupMembersActivity extends ComponentActivity {
 
         List<ZIMKitGroupMemberInfo> groupMemberList = ZIMKitCore.getInstance().getGroupMemberList(mID);
         GroupMemberAdapter groupMemberAdapter = new GroupMemberAdapter();
+        // 本地缓存可能为 null / 尚未拉到 → 先挂适配器渲染空态，再异步查一次填充
+        //（老代码直接 setMemberList(null) 会 NPE 崩溃 → 用户看到白屏；见 GroupMemberAdapter 注释）
+        android.util.Log.i("MemberClick", "members page open gid=" + mID
+            + " cached=" + (groupMemberList == null ? "null" : groupMemberList.size()));
         groupMemberAdapter.setMemberList(groupMemberList);
         binding.recyclerview.setAdapter(groupMemberAdapter);
         binding.recyclerview.setLayoutManager(new LinearLayoutManager(this));
+        // 异步拉成员名单（缓存未命中时也能出数据，不再空页）
+        try {
+            ZIMGroupMemberQueryConfig memberQueryConfig = new ZIMGroupMemberQueryConfig();
+            memberQueryConfig.count = 100;
+            ZIMKitCore.getInstance().queryGroupMemberList(mID, memberQueryConfig,
+                new QueryGroupMemberListCallback() {
+                    @Override
+                    public void onGroupMemberListQueried(String groupID,
+                        ArrayList<ZIMKitGroupMemberInfo> userList, int nextFlag, ZIMError errorInfo) {
+                        android.util.Log.i("MemberClick", "members page queried gid=" + groupID
+                            + " count=" + (userList == null ? -1 : userList.size())
+                            + " err=" + (errorInfo == null ? 0 : errorInfo.code));
+                        if (userList != null) {
+                            runOnUiThread(() -> groupMemberAdapter.setMemberList(userList));
+                        }
+                    }
+                });
+        } catch (Exception e) {
+            android.util.Log.w("MemberClick", "members page query fail: " + e.getMessage());
+        }
         binding.recyclerview.addOnItemTouchListener(new OnRecyclerViewItemTouchListener(binding.recyclerview) {
             @Override
             public void onItemClick(RecyclerView.ViewHolder vh) {
@@ -147,11 +173,33 @@ public class ZIMKitGroupMembersActivity extends ComponentActivity {
             @Override
             public void onGroupMemberStateChanged(ZIMGroupMemberState state, ZIMGroupMemberEvent event,
                 ArrayList<ZIMGroupMemberInfo> userList, ZIMGroupOperatedInfo operatedInfo, String groupID) {
-                List<ZIMKitGroupMemberInfo> groupMemberList = ZIMKitCore.getInstance().getGroupMemberList(mID);
-                groupMemberAdapter.setMemberList(groupMemberList);
+                // ⚠️ ZIM 回调在**子线程**：RecyclerView 的 notifyDataSetChanged 必须在主线程，
+                //    否则成员进/退群时有机会崩（同页异步查询那一处本来就切了主线程，这里曾漏）
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) {
+                        return;
+                    }
+                    List<ZIMKitGroupMemberInfo> groupMemberList = ZIMKitCore.getInstance().getGroupMemberList(mID);
+                    groupMemberAdapter.setMemberList(groupMemberList);
+                });
             }
         };
         ZIMKit.registerZIMKitDelegate(zimKitDelegate);
+    }
+
+    @Override
+    protected void onDestroy() {
+        // 必须在销毁时反注册：曾漏掉 → 每进一次成员页就多注册一个 delegate，且持有已销毁的 Activity
+        //（参照 ZIMKitGroupChatSettingActivity 的 register / unRegister 成对写法）
+        try {
+            if (zimKitDelegate != null) {
+                ZIMKit.unRegisterZIMKitDelegate(zimKitDelegate);
+                zimKitDelegate = null;
+            }
+        } catch (Exception e) {
+            android.util.Log.w("MemberClick", "unRegisterZIMKitDelegate fail: " + e.getMessage());
+        }
+        super.onDestroy();
     }
 
     public static int dp2px(float v, DisplayMetrics displayMetrics) {

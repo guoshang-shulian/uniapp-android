@@ -196,4 +196,5 @@
   <string name="zimkit_chat_retract_confirm">Are you sure you want to retract this message?</string>
   <string name="forward_select_none_tips">Please select at least one message</string>
   <string name="zimkit_sendto">Send To:</string>
+  <string name="zimkit_store_ball_desc">Community store</string>
 </resources>

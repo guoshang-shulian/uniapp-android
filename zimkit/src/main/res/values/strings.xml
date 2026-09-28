@@ -198,5 +198,6 @@
   <string name="zimkit_chat_retract_confirm">确定要撤回此消息吗?</string>
   <string name="forward_select_none_tips">请至少选择一条消息</string>
   <string name="zimkit_sendto">发送给:</string>
+  <string name="zimkit_store_ball_desc">社群店铺</string>
 
 </resources>

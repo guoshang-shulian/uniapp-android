@@ -1687,31 +1687,101 @@ public class TestModule extends UniModule {
     private static UniJSCallback sGlobalJsCallback;
 
     public static void emitGlobalEvent(String event, JSONObject data) {
+        emitGlobalEvent(event, (Object) data);
+    }
+
+    /**
+     * 跨 Activity 向 uniapp 派发全局事件（宽松重载）。
+     *
+     * <p><b>为什么参数是 Object</b>：zimkit 侧用反射调这个方法，而 zimkit 手里的 JSON 类型
+     * 可能与这里的 {@code org.json.JSONObject} 不是同一个类（工程里同时存在 org.json 与
+     * com.alibaba.fastjson）→ 精确签名匹配会抛
+     * {@code NoSuchMethodException: emitGlobalEvent [String, org.json.JSONObject]}，
+     * 事件被静默吞掉（实测踩过：点悬浮球只关了原生页、没跳 uniapp）。
+     * 放宽成 Object 后，两种 JSONObject 都能调进来，这里再按类型取用。
+     */
+    public static void emitGlobalEvent(String event, Object data) {
         try {
-            if (sGlobalJsCallback != null) {
-                JSONObject payload = new JSONObject();
-                payload.put("event", event);
-                payload.put("data", data == null ? new JSONObject() : data);
-                sGlobalJsCallback.invokeAndKeepAlive(payload);
+            if (sGlobalJsCallback == null) {
+                android.util.Log.w("StoreEntry", "emitGlobalEvent skipped (no channel): " + event);
+                return;
             }
-        } catch (Exception ignored) {
+            JSONObject payload = new JSONObject();
+            payload.put("event", event);
+            JSONObject body = new JSONObject();
+            if (data instanceof JSONObject) {
+                body = (JSONObject) data;
+            } else if (data instanceof com.alibaba.fastjson.JSONObject) {
+                // fastjson 侧传进来的：逐 key 复制成 org.json
+                // （org.json.JSONObject 没有 String 构造器，new JSONObject(String) 会抛异常）
+                for (java.util.Map.Entry<String, Object> entry
+                    : ((com.alibaba.fastjson.JSONObject) data).entrySet()) {
+                    body.put(entry.getKey(), entry.getValue());
+                }
+            }
+            payload.put("data", body);
+            sGlobalJsCallback.invokeAndKeepAlive(payload);
+        } catch (Exception e) {
+            android.util.Log.w("StoreEntry", "emitGlobalEvent fail: " + e);
         }
+    }
+
+    /**
+     * uniapp 的事件通道是否就绪（{@code startSyncPipeline} 注册的回调）。
+     *
+     * <p>用途：原生页要"派发事件让 uniapp 跳页面"时，必须先确认通道存在 ——
+     * 极冷启动（推送直接进聊天页）时通道还没注册，此时不能傻等，应改为轻提示而不是跳不相关页面。
+     */
+    public static boolean hasGlobalEventChannel() {
+        return sGlobalJsCallback != null;
+    }
+
+    /**
+     * uniapp 通道就绪后补发极冷启动期间暂存的事件（见 {@code UniappEventApi.emitOrQueue}），
+     * 并收掉压在 uniapp 之上的原生聊天页 —— 否则 uniapp 的页面在下面，用户看不到跳转结果。
+     */
+    private static void flushPendingUniappEvents() {
+        final boolean flushed;
+        try {
+            flushed = com.zegocloud.zimkit.common.utils.UniappEventApi.flushPending();
+        } catch (Throwable t) {
+            android.util.Log.w("StoreEntry", "flushPending 异常: " + t);
+            return;
+        }
+        if (!flushed) {
+            return;
+        }
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            try {
+                com.zegocloud.zimkit.components.message.ui.ZIMKitMessageActivity.finishCurrent();
+            } catch (Throwable t) {
+                android.util.Log.w("StoreEntry", "补发后收页失败: " + t);
+            }
+        }, 300);
     }
 
     @UniJSMethod(uiThread = false)
     public void startSyncPipeline(UniJSCallback callback) {
         globalJsCallback = callback;
         sGlobalJsCallback = callback;
-//        neteaseLogin();
+        // uniapp 通道此刻就绪 → 补发极冷启动期间暂存的事件（点悬浮球/卡片时 uniapp 还没起来）
+        flushPendingUniappEvents();
+        // ⚠️ 幂等：uniapp 侧现在会在 onShow 也调一次（registerNativeEventChannel，为了让事件通道
+        //    不依赖 ZIM 登录）。若这里每次都 stop + 重建，就会**每次回前台都把 3 个 ZIMKit 事件回调
+        //    置空、重建线程池与 30 秒定时任务** → 聊天页明显卡顿（实测 3 分钟内被重启 10 次）。
+        //    已注册过就只更新回调引用，不做任何拆卸/重建。
+        if (syncScheduler != null && !syncScheduler.isShutdown()) {
+            android.util.Log.i("StoreEntry", "事件通道已注册，仅更新回调（不重启管道）");
+            return;
+        }
         System.out.println("SaaS Data Engine: Sync Pipeline Activated.");
-        stopSyncPipeline();
+        android.util.Log.i("StoreEntry", "uniapp event channel registered (startSyncPipeline)");
         enableConversationLiveSync();
         syncScheduler = Executors.newSingleThreadScheduledExecutor();
         syncScheduler.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
                 try {
-                    System.out.println("SaaS Auto-Sync: Refreshing peer conversations...");
                     loadPeerConversations();
                     loadGroupConversations();
                 } catch (Exception e) {
@@ -2093,6 +2163,16 @@ public class TestModule extends UniModule {
 
     private static UniJSCallback globalJsCallback;
     private static UniJSCallback cardJsCallback;
+    /**
+     * 冷启动点卡片时 uniapp 还没起来 → **暂存**事件，等 uniapp 注册回调的那一刻补发。
+     *
+     * <p>场景（实测）：进程被杀后从最近任务恢复到原生聊天页，Android 只重建栈顶那个原生 Activity，
+     * uniapp 的 {@code PandoraEntryActivity} 还没被创建 → {@code App.vue} 的 onLaunch 没跑过 →
+     * {@code registerCardEventCallback} 还没注册 → 点卡片时 {@code cardJsCallback == null}。
+     * 旧代码在这里**静默 return**，用户看到的是"怎么点都没反应"（日志连续 `cardJsCallback=false`）。
+     */
+    private static volatile String sPendingCardAction;
+    private static volatile String sPendingCardData;
     private static final Map<String, UniJSCallback> sMemberPickerCallbacks = new ConcurrentHashMap<>();
     private static UniJSCallback sGroupMembersCallback;
     private static boolean isDelegateRegistered = false;
@@ -2172,6 +2252,72 @@ public class TestModule extends UniModule {
         localUserId = userId == null ? "" : userId;
         localUserName = userName == null ? "" : userName;
         localUserAvatar = avatarUrl == null ? "" : avatarUrl;
+        // 原生页 → uniapp 的全局事件派发：zimkit 不能反向 import 本类，用注入接口对接。
+        // （曾用反射调 emitGlobalEvent，运行时抛 NoSuchMethodException —— 两个模块持有的 JSONObject
+        //   不是同一个类，精确签名匹配必然失败，事件被静默吞掉 → 点悬浮球只关原生页不跳转）
+        com.zegocloud.zimkit.common.utils.UniappEventApi.setEmitter((event, dataClassName, keys, values) -> {
+            if (sGlobalJsCallback == null) {
+                return false;
+            }
+            JSONObject data = new JSONObject();
+            if (keys != null && values != null) {
+                for (int i = 0; i < keys.length && i < values.length; i++) {
+                    try {
+                        data.put(keys[i], values[i]);
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+            emitGlobalEvent(event, (Object) data);
+            return true;
+        });
+        // 通道"就绪"判据 = uniapp 真的注册了全局回调（startSyncPipeline），而不是"emitter 注册了"
+        // （后者在 setBusinessConfig 时就有了，两者是两件事 —— 用错判据会让极冷启动提示语不对）
+        com.zegocloud.zimkit.common.utils.UniappEventApi.setChannelProbe(TestModule::hasGlobalEventChannel);
+        // 极冷启动（点悬浮球时 uniapp 还没起来）→ 由这里把 uniapp 拉起来（zimkit 不能反向依赖本模块）
+        com.zegocloud.zimkit.common.utils.UniappEventApi.setLauncher(this::bringUniappToFront);
+        // 聊天页「社群店铺」悬浮球：显隐由业务后端决定（群主开关 + 群主有 PASS 店铺，后端已综合）。
+        // 轻量接口 GET /buyer/social/group/{id}/store-entry → { showStore, distributionId, groupId }
+        // zimkit 不能反向依赖业务 token → 这里注入实现（与 GroupProfileApi 同一套路）。
+        com.zegocloud.zimkit.common.utils.StoreEntryApi.setFetcher((groupId, callback) -> {
+            try {
+                io.dcloud.uniplugin.others.RedPacketApi.get(
+                    businessBaseUrl + "/social/group/" + groupId + "/store-entry",
+                    new JSONObject(),
+                    new io.dcloud.uniplugin.others.RedPacketApi.Callback() {
+                        @Override
+                        public void onSuccess(JSONObject result) {
+                            if (result == null) {
+                                if (callback != null) {
+                                    callback.onResult(null);
+                                }
+                                return;
+                            }
+                            boolean show = Boolean.TRUE.equals(result.getBoolean("showStore"));
+                            String distributionId = result.getString("distributionId");
+                            if (callback != null) {
+                                callback.onResult(new com.zegocloud.zimkit.common.utils.StoreEntryApi.Entry(
+                                    show, distributionId, groupId));
+                            }
+                        }
+
+                        @Override
+                        public void onError(int code, String message) {
+                            // 失败/超时 → 悬浮球不显示（只记日志，不打扰用户）
+                            android.util.Log.w("StoreEntry", "gid=" + groupId + " fail code=" + code
+                                + " msg=" + message + " → hide");
+                            if (callback != null) {
+                                callback.onResult(null);
+                            }
+                        }
+                    });
+            } catch (Exception e) {
+                android.util.Log.w("StoreEntry", "gid=" + groupId + " exception: " + e.getMessage());
+                if (callback != null) {
+                    callback.onResult(null);
+                }
+            }
+        });
         System.out.println("[BusinessConfig] baseUrl=" + businessBaseUrl
             + " tokenLen=" + io.dcloud.uniplugin.others.BusinessSession.getAccessToken().length()
             + " refreshLen=" + io.dcloud.uniplugin.others.BusinessSession.getRefreshToken().length()
@@ -2244,6 +2390,93 @@ public class TestModule extends UniModule {
     @UniJSMethod(uiThread = true)
     public void registerCardEventCallback(UniJSCallback callback) {
         cardJsCallback = callback;
+        // 冷启动点卡片时事件已被暂存 → uniapp 注册回调的这一刻补发（见 dispatchCardEvent）
+        flushPendingCardEvent();
+    }
+
+    /**
+     * 把 uniapp 主界面拉到前台（冷启动点卡片时 uniapp 可能还没被创建）。
+     *
+     * <p>⚠️ **只用 launcher intent 不够**（实测踩过）：任务栈已存在时，launcher intent 只是把该任务置前，
+     * **不会真的创建 uniapp 宿主 Activity** —— 表现为日志打了 20+ 次「已拉起 uniapp 主界面」，
+     * 界面却一直停在原生聊天页（`cardJsCallback` 始终 false）。
+     * 所以这里**直接按类名启动 uniapp 宿主** `io.dcloud.PandoraEntryActivity`（debug 基座的
+     * `PullDebugActivity` 只是 HBuilderX 的调试入口，不能当"主界面"用），失败才回退 launcher intent。
+     */
+    private void bringUniappToFront() {
+        try {
+            android.content.Context ctx = dialogContext();
+            if (ctx == null && mUniSDKInstance != null) {
+                ctx = mUniSDKInstance.getContext();
+            }
+            if (ctx == null) {
+                android.util.Log.w("CardBridge", "bringUniappToFront: ctx 为空");
+                return;
+            }
+            boolean started = false;
+            // 按这个顺序试：① PandoraEntry = DCloud 的正式入口（release 的 launcher；debug 基座里也存在，
+            // HBuilderX 的 PullDebugActivity 同步完就是跳它）→ ② PandoraEntryActivity = uniapp 宿主 Activity
+            final String[] candidates = {"io.dcloud.PandoraEntry", "io.dcloud.PandoraEntryActivity"};
+            for (String name : candidates) {
+                try {
+                    Class<?> host = Class.forName(name);
+                    android.content.Intent direct = new android.content.Intent(ctx, host);
+                    direct.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+                    ctx.startActivity(direct);
+                    started = true;
+                    System.out.println("[CardBridge] 已直接启动 uniapp 入口 " + name);
+                    break;
+                } catch (Throwable t) {
+                    android.util.Log.w("CardBridge", "启动 " + name + " 失败: " + t);
+                }
+            }
+            if (!started) {
+                android.content.Intent intent = ctx.getPackageManager()
+                    .getLaunchIntentForPackage(ctx.getPackageName());
+                if (intent == null) {
+                    android.util.Log.w("CardBridge", "bringUniappToFront: launch intent 为空");
+                    return;
+                }
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+                ctx.startActivity(intent);
+                System.out.println("[CardBridge] 已用 launcher intent 拉起 uniapp");
+            }
+            // 不再弹「正在打开…」：拉起成功时 uniapp 会立刻显示（用户反馈该提示多余）
+        } catch (Exception e) {
+            android.util.Log.w("CardBridge", "bringUniappToFront fail: " + e);
+        }
+    }
+
+    /** uniapp 注册卡片回调后补发暂存事件（冷启动点卡片场景） */
+    private static void flushPendingCardEvent() {
+        final String action = sPendingCardAction;
+        final String data = sPendingCardData;
+        if (action == null) {
+            return;
+        }
+        sPendingCardAction = null;
+        sPendingCardData = null;
+        System.out.println("[CardBridge] 补发暂存事件 action=" + action);
+        // 注册发生在 App.vue onLaunch 期间，页面栈/路由此时才建好 → 略等一拍再发，避免跳转失败
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            try {
+                final UniJSCallback cb = cardJsCallback;
+                if (cb == null) {
+                    System.out.println("[CardBridge] 补发放弃：回调又变 null");
+                    return;
+                }
+                JSONObject payload = data == null ? new JSONObject() : JSON.parseObject(data);
+                JSONObject event = new JSONObject();
+                event.put("event", action);
+                event.put("data", payload);
+                cb.invokeAndKeepAlive(event);
+                System.out.println("[CardBridge] 补发完成 action=" + action);
+                // 与正常路径一致：等 uniapp 开始跳转后再收掉原生聊天页，否则它会压在 uniapp 之上
+                ZIMKitMessageActivity.finishCurrent();
+            } catch (Exception e) {
+                android.util.Log.w("CardBridge", "补发失败: " + e);
+            }
+        }, 300);
     }
 
     @UniJSMethod(uiThread = true)
@@ -4174,7 +4407,12 @@ public class TestModule extends UniModule {
                 return;
             }
             if (cardJsCallback == null) {
-                System.out.println("[CardBridge] cardJsCallback is null, action=" + action);
+                // 冷启动（从最近任务恢复到原生聊天页）时 uniapp 还没创建 → 回调未注册。
+                // **不能静默 return**：暂存事件 + 主动把 uniapp 拉起来，等它注册回调的瞬间补发。
+                sPendingCardAction = action;
+                sPendingCardData = data;
+                System.out.println("[CardBridge] uniapp 未就绪 → 暂存 action=" + action + "，并拉起 uniapp");
+                bringUniappToFront();
                 return;
             }
             // 其他卡片（商品/店铺/文章）走 uniapp 页面：先通知 JS，再关闭聊天页（避免 finish 影响回调投递）
