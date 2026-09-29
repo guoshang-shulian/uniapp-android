@@ -5,9 +5,9 @@ import android.util.Log;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
-import io.dcloud.feature.ad.gdt.ADGdtHandler;
+//import io.dcloud.feature.ad.gdt.ADGdtHandler;
 import io.dcloud.application.DCloudApplication;
-import  io.dcloud.feature.ad.ADInitManager;
+//import  io.dcloud.feature.ad.ADInitManager;
 import com.cool.dianshang.data.PrivacyData;
 import com.zegocloud.zimkit.services.ZIMKit; // Adjust package path to match your imports
 import com.zegocloud.zimkit.services.ZIMKitConfig;
