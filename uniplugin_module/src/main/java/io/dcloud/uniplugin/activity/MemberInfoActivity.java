@@ -25,6 +25,7 @@ import im.zego.zim.entity.ZIMGroupMemberMuteConfig;
 import im.zego.zim.entity.ZIMGroupMemberQueryConfig;
 import im.zego.zim.enums.ZIMErrorCode;
 import io.dcloud.uniplugin.others.ClickGuard;
+import io.dcloud.uniplugin.others.MemberInfoCallback;
 import io.dcloud.uniplugin.others.RedPacketApi;
 import io.dcloud.uniplugin.TestModule;
 import io.dcloud.uniplugin.memberpicker.Member;
@@ -81,6 +82,13 @@ public class MemberInfoActivity extends android.app.Activity {
     private TextView friendBtn;
     /** 是否互为好友（由 /social/contact/{memberId} 的 friend 字段决定；null=还没返回 → 按钮不显示） */
     private Boolean isFriend = null;
+
+    public static MemberInfoCallback memberInfoCallback;
+
+    public static void setMemberInfoCallback(MemberInfoCallback listener) {
+        memberInfoCallback = listener;
+    }
+
     /**
      * 目标是不是自己（本地登录 userId 与目标一致）。
      * 是自己 → 底部按钮区整体不显示：发消息/加好友/删好友对自己都没有意义。
@@ -780,7 +788,11 @@ public class MemberInfoActivity extends android.app.Activity {
         }
         try {
             // 统一交给 TestModule：客服走 PEER，普通用户走 2 人群聊（与 uniapp profile.vue 同口径）
-            TestModule.openMemberChat(zimId);
+            memberInfoCallback.onClick(zimId);
+           // TestModule.openMemberChat(zimId);
+//            TestModule mk = new TestModule();
+//            mk.openPeerChat(zimId);
+//            TestModule.openPeerChat(zimId);
         } catch (Exception e) {
             toast("打开聊天失败：" + e.getMessage());
         }

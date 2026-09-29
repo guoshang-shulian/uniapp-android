@@ -55,6 +55,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -165,6 +166,22 @@ public class TestModule extends UniModule {
      * 原来是非静态字段，静态方法里碰不到。
      */
     static String groupId = "";
+
+    private String productJson = "{"
+            + "\"goodsId\": \"2099859778271653890\","
+            + "\"skuId\": \"2099859778301014018\","
+            + "\"productName\": \"赣南御龙鲜有机富硒红茶礼盒 200g*2/盒 400克\","
+            + "\"productImage\": \"https://try.shanxunsw.com/uploads/_37ce4efaa8041b2afc852cc68b49f3f27e050b2eb74b5c6642.jpg?x-oss-process=style/400X400\","
+            + "\"price\": 980,"
+            + "\"pointsPrice\": \"\","
+            + "\"merchantId\": \"2099498853458944002\","
+            + "\"merchantName\": \"众慧优选\","
+            + "\"merchantLogo\": \"\","
+            + "\"sales\": 0,"
+            + "\"stock\": 817,"
+            + "\"remark\": \"高端礼盒赣南御龙鲜有机富硒红茶\""
+            + "}";
+
 
     public void neteaseLogin(){
         System.out.println("netease-login info");
@@ -1102,7 +1119,12 @@ public class TestModule extends UniModule {
         }
     }
 
-    private void openPeerChat(String conversationID) {
+    private  Context context;
+    private void setContext(Context contex){
+        context = contex;
+    }
+
+    public void openPeerChat(String conversationID) {
         groupId = "";
         ZIMKitMessageFragment.setOnNativeDataListener(new BackToUniappCallback() {
             @Override
@@ -1898,9 +1920,16 @@ public class TestModule extends UniModule {
     private void loadPeerConversations() {
         ZIMConversationQueryConfig config = new ZIMConversationQueryConfig();
         config.count = 100;
+        ZIMConversation conversation = new ZIMConversation();
+//        conversation.marks.add(1);
+//        conversation.marks.add(2);
+//        config.nextConversation = conversation;
+
 
         ZIMConversationFilterOption filterOption = new ZIMConversationFilterOption();
         filterOption.conversationTypes = new ArrayList<>();
+        ArrayList<Integer> marksList = new ArrayList<>(Arrays.asList(-1));
+        filterOption.marks = marksList;
         filterOption.conversationTypes.add(ZIMConversationType.PEER); // Zego server filters to 1-vs-1 only
 
         ZegoSignalingPlugin.getInstance().queryConversationList(config, filterOption, (conversationList, errorInfo) -> {
@@ -1913,6 +1942,7 @@ public class TestModule extends UniModule {
                 com.alibaba.fastjson.JSONArray uniArray = com.alibaba.fastjson.JSON.parseArray(
                         new com.google.gson.Gson().toJson(conversationList)
                 );
+                System.out.println("list length :::" + conversationList.size());
                 JSONObject payload = new JSONObject();
                 payload.put("list", uniArray);
 
@@ -3076,11 +3106,18 @@ public class TestModule extends UniModule {
     @UniJSMethod(uiThread = true)
     public void openMemberInfoByZim(String memberUserId, String groupId, UniJSCallback callback) {
         try {
+            setContext(mUniSDKInstance.getContext());
+
             Context ctx = safeContext();
             if (ctx == null) {
                 invokeFail(callback, new Exception("context null"));
                 return;
             }
+            MemberInfoActivity.setMemberInfoCallback((zimid) -> {
+                System.out.println("making cash oo");
+                System.out.println(zimid);
+                openPeerChat(zimid);
+            });
             MemberInfoActivity.start(ctx,
                 groupId == null ? "" : groupId,
                 toZimUserId(memberUserId));
@@ -3129,7 +3166,10 @@ public class TestModule extends UniModule {
      * </ul>
      */
     public static void openMemberChat(String zimUserId) {
+
+//        return;
         String peer = zimUserId == null ? "" : zimUserId;
+
         if (peer.isEmpty()) {
             return;
         }
@@ -4225,6 +4265,8 @@ public class TestModule extends UniModule {
                     System.out.println("final data here oo");
                     loadPeerConversations();
                     loadGroupConversations();
+
+
 //
 //                    if (conversations != null ) {
 //                        // 2. CONVERT MIXED LIST TO CLEAN JSON STRINGS

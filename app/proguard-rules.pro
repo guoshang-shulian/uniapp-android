@@ -37,10 +37,10 @@
 -keep class vi.com.gdi.** {*;}
 -keep class androidx.** {*;}
 -dontwarn pl.droidsonroids.gif.**
+# Keep Baidu Mobads SDK classes
+-keep class com.baidu.mobads.sdk.** { *; }
 
--keepclasseswithmembers class * extends io.dcloud.js.geolocation.GeoManagerBase {
-    <methods>;
-}
+# Explicitly keep the FileProvider to prevent it from being stripped
 
 -keep class io.dcloud.share.AbsWebviewClient
 -keepclasseswithmembers class io.dcloud.share.AbsWebviewClient {

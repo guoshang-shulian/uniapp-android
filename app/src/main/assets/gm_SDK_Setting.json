@@ -1,0 +1,73 @@
+{
+	"init": {
+		"site_id": "5885531",
+		"app_id": "1066717",
+		"partner": "pangle_1066717",
+		"secure_key": "e0b783bb5ed30d2f7a498a85fae2dfd9",
+		"secure_key_d": null
+	},
+	"feed": {
+		"news_list_ad_code_id": "",
+		"news_first_ad_code_id": "",
+		"news_second_ad_code_id": "",
+		"video_first_ad_code_id": "",
+		"video_second_ad_code_id": "",
+		"related_ad_code_id": "",
+		"news_draw_ad_code_id": "989613675",
+		"news_draw_native_ad_code_id": "989613977",
+		"news_outer_list_ad_code_id": "",
+		"news_outer_first_ad_code_id": "",
+		"news_outer_second_ad_code_id": "",
+		"outer_video_second_ad_code_id": "",
+		"outer_related_ad_code_id": "",
+		"news_outer_draw_ad_code_id": "989613865",
+		"news_outer_draw_native_ad_code_id": "989613878",
+		"news_interstitial_code_id": ""
+	},
+	"small_video": {
+		"draw_ad_code_id": "989613902",
+		"draw_native_ad_code_id": "989613967",
+		"grid_ad_code_id": "989613658",
+		"grid_draw_ad_code_id": "989613953",
+		"grid_draw_native_ad_code_id": "989613820",
+		"video_card_ad_code_id": "989613750",
+		"video_card_draw_ad_code_id": "989613808",
+		"video_card_draw_native_ad_code_id": "989613911",
+		"interstitial_ad_code_id": "",
+		"interstitial_note_ad_code_id": "989613794",
+		"staggered_grid_ad_code_id": "989613764",
+		"staggered_grid_draw_ad_code_id": "989613902",
+		"staggered_grid_draw_native_ad_code_id": "989613967",
+		"draw_interstitial_ad_code_id": "989613936",
+		"draw_fullscreen_interstitial_ad_code_id": "989613719",
+		"draw_banner_code_id": "989613736",
+		"drama_rewarded_ad_code_id": "989613845",
+		"drama_rewarded_ad_code_id_02": "989613692",
+		"drama_draw_ad_code_id": "989613705",
+		"staggered_grid_ad_code_id_02": "989613779"
+	},
+	"novel": {
+		"status": 0,
+		"pre_ad_code_id": "",
+		"mid_ad_code_id": "",
+		"exciting_ad_code_id": "",
+		"interstitial_code_id": "",
+		"banner_ad_code_id": "",
+		"end_ad_code_id": ""
+	},
+	"live": null,
+	"license_config": [
+		{
+			"PackageName": "com.cool.dianshang",
+			"BundleId": "com.cool.dianshang",
+			"StartTime": "20260922T020036Z",
+			"ExpireTime": "20280921T020036Z",
+			"CreatedTime": "20260922T020035Z",
+			"Signature": "TrGOSypKLzNvR3QPsW7nE3l+Uuh5tUKyg9y/KTc/406D10oV2P7FA3d/Keo2je278/QPGhozvpz7rxDKi6umanioxVTsd2dcftYiYRoBG6SBipw2rxgK0Hq2rJcmT5BABd1zUUBuEp0gMJ0eIWe3T2URZrW1IjXalpFGfh2So/mWe41UNR/RxaGjbYCsV9CA+AcKczAqJE9guXitjJ4jaJDlaVBQBwYoi05b/iL7S5C4a/YiUWczfyswbN4C7Ir4q+Dkzis9PkZD95uPr1LFBdxt+2ggZf9yBA8vsZKVAAlFogx4d8UGIPWjreWz7zegGCMfpqJyfjrM0BHh7+L2UA==",
+			"Content": "eyJJZCI6IjUwMzU5ODY5NDYiLCJWZXJzaW9uIjoyLCJDaGFubmVsIjoiYWRfY3NqIiwiVHlwZSI6MiwiUGFja2FnZU5hbWUiOiJjb20uY29vbC5kaWFuc2hhbmciLCJCdW5kbGVJZCI6ImNvbS5jb29sLmRpYW5zaGFuZyIsIk1vZHVsZXMiOlt7Ik5hbWUiOiJ2b2RfcGxheSIsIkVkaXRpb24iOiJwcmVtaXVtX2VkaXRpb24iLCJTdGFydFRpbWUiOjE3OTAwNDI0MzU4OTYsIkV4cGlyZVRpbWUiOjE4NTMxMTQ0MzU4OTYsIkV4cGlyZUJ1ZmZlciI6MTU1NTIwMDAwMDB9XSwiRmlsZVZlcnNpb24iOiIxNzkwMDQyNDM1OTEyODY3Mjc0In0=",
+			"MainURL": "https://vod-license-b.volccdn.com/vod-license/l-5035986946-ch-ad_csj-a-1066717.lic?lk3s=0d9f7a7d\u0026x-expires=4943642435\u0026x-signature=y%2BIjsaK88fK7Wa7qR90D8TdVsKQ%3D",
+			"BackupURL": "https://vod-license-m.volccdn.com/vod-license/l-5035986946-ch-ad_csj-a-1066717.lic?lk3s=0d9f7a7d\u0026x-expires=4943642435\u0026x-signature=4dxych%2F8nGNUxfG9pl5RzcXcLiw%3D",
+			"Id": "5035986946"
+		}
+	]
+}

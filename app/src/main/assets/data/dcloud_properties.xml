@@ -10,6 +10,12 @@
             <module name="iFly" value="io.dcloud.feature.speech.IflySpeechEngine"/>
             <module name="baidu" value="io.dcloud.feature.speech.BaiduSpeechEngine"/>
         </feature>
+		<feature name="Ad" value="io.dcloud.feature.ad.AdFlowFeatureImpl">
+<!--			<module name="gdt" value="io.dcloud.feature.ad.gdt.ADGdtHandler"/>-->
+		</feature>
+
+		<!-- Registers the internal programmatic advertising controller engine -->
+		<feature name="Invocation" value="io.dcloud.invocation.InvocationFeatureImpl"/>
 		<feature name="Maps" value="io.dcloud.js.map.amap.JsMapPluginImpl"/>
         <!--<feature name="Maps" value="io.dcloud.js.map.JsMapPluginImpl"/>-->
 		<feature name="Contacts" value="io.dcloud.feature.contacts.ContactsFeatureImpl"/>

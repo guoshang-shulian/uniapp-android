@@ -76,8 +76,11 @@ repositories {
     }
 }
 dependencies {
-    implementation fileTree(dir: 'libs', include: ['*.jar'])
+//    implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation fileTree(dir: 'libs', include: ['*.aar'])
+    implementation fileTree(dir: 'ad_libs',  include: ['*.aar'])
+
+
 //    implementation fileTree(dir: 'zj_libs', include: ['*.jar', '*.aar'])
 
     implementation 'com.pangle.cn:pangrowth-base:2.9.0.5'
@@ -124,3 +127,7 @@ dependencies {
     implementation 'net.lingala.zip4j:zip4j:2.11.5'
 
 }
+//configurations.all {
+    // This tells Gradle to globally ignore this specific sub-package from compilation
+    //exclude group: 'io.dcloud.api.custom.type.splash'
+//}splash
