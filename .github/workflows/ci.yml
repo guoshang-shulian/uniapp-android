@@ -24,10 +24,10 @@ jobs:
 
       - name: Build with Gradle
         # run: ./gradlew assembleDebug
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleDebug
 
       - name: CheckSize
-        run: ls app/build/outputs/apk/release/
+        run: ls app/build/outputs/apk/debug/
 
       - name: Move to  remote server
         env:
@@ -42,4 +42,4 @@ jobs:
           echo "SSH_KEY"
           echo "$SSH_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no app/build/outputs/apk/release/app-release.apk ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/av/
+          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no app/build/outputs/apk/debug/app-debug.apk ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/av/

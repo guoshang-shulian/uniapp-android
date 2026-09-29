@@ -5,9 +5,9 @@ import android.util.Log;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
-
+//import io.dcloud.feature.ad.gdt.ADGdtHandler;
 import io.dcloud.application.DCloudApplication;
-
+//import  io.dcloud.feature.ad.ADInitManager;
 import com.cool.dianshang.data.PrivacyData;
 import com.zegocloud.zimkit.services.ZIMKit; // Adjust package path to match your imports
 import com.zegocloud.zimkit.services.ZIMKitConfig;
@@ -42,6 +42,8 @@ public class MainApplication extends DCloudApplication {
             // Wrap the SDK initialization logic inside the try block
             ZIMKit.initWith(this, appId, appSign, zimKitConfig);
             ZIMKit.initNotifications();
+  //          ADInitManager.getInstance().init(this,"__UNI__F189B8A","129951300105");
+//            GDTAdInitManager.getInstance().init();
             Log.d("ZIMKIT", "STARTED SUCCESSFULLY");
         } catch (Exception e) {
             // Handle initialization errors to prevent app crashes
@@ -49,6 +51,8 @@ public class MainApplication extends DCloudApplication {
             e.printStackTrace();
         }
     }
+
+
 
 //    public void start(Context context) {
 //        initSdkPrivacyConfig();
