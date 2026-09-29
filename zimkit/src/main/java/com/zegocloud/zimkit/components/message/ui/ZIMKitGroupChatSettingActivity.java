@@ -128,6 +128,21 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
         // 适配器创建后再关掉「邀请/踢出」：等 bizType 回来按类型决定是否显示（防闪）
         shortcutAdapter.setShowInvite(false);
         shortcutAdapter.setShowKick(false);
+        // ★ 同步预判：bizType 缓存命中时，**第一帧**就按最终布局渲染，不必等异步 queryGroupAllAttributes。
+        //   否则社群频道会出现"进去先一堆项（退出群聊/群二维码/群ID/群聊名称）、过一会儿才消失"（用户实测反馈）。
+        //   缓存由 ZIMKitMessageActivity 的 queryGroupInfo 与下面的 queryGroupAllAttributes 写入；
+        //   未命中（如进程刚重启）→ 保持原来的"等异步"行为，不会更差；异步结果回来会再纠正一次。
+        final String cachedBizType = com.zegocloud.zimkit.common.utils.GroupBizTypeCache.get(mId);
+        if (com.zegocloud.zimkit.common.utils.GroupBizTypeCache.BIZ_TYPE_COMMUNITY.equals(cachedBizType)) {
+            isCommunityChannel = true;
+            applyCommunityChannelVisibility();
+            applyOwnerOnlyRows();
+        } else if (!cachedBizType.isEmpty()) {
+            // 明确不是社群频道 → 「邀请/踢出」可以立刻显示（不必等属性回来）
+            shortcutAdapter.setShowInvite(true);
+            shortcutAdapter.setShowKick(true);
+            applyOwnerOnlyRows();
+        }
         // 立刻把适配器挂上去：refreshGroupMembers() 是异步查询，回调里会操作 shortcutAdapter，
         // 若 setAdapter 放在后面（原 L256），存在"回调先于挂载"的时序风险。
         binding.groupChatMembersRecyclerview.setAdapter(shortcutAdapter);
@@ -210,54 +225,16 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
             ZIMKitCore.getInstance().zim().queryGroupAllAttributes(mId, (g, attrs, e) -> {
                 boolean community = attrs != null && "community".equals(attrs.get("bizType"));
                 isCommunityChannel = community;
+                // 权威结果回写缓存（下次进本页 onCreate 就能"第一帧就对"）；查失败不写，避免把"未知"当"非社群"
+                if (attrs != null) {
+                    com.zegocloud.zimkit.common.utils.GroupBizTypeCache.put(mId,
+                        String.valueOf(attrs.get("bizType")));
+                }
                 runOnUiThread(() -> {
                     if (community) {
-                        View exitBtn = binding.getRoot().findViewById(R.id.exit_group_btn);
-                        if (exitBtn != null) {
-                            exitBtn.setVisibility(View.GONE);
-                        }
-                        View qrRow = binding.getRoot().findViewById(R.id.qr_code_container);
-                        if (qrRow != null) {
-                            qrRow.setVisibility(View.GONE);
-                        }
-                        View qrRow2 = binding.getRoot().findViewById(R.id.group_qr_code);
-                        if (qrRow2 != null) {
-                            qrRow2.setVisibility(View.GONE);
-                        }
-                        // 社群频道：隐藏群ID + 复制按钮
-                        View infoLayout = binding.getRoot().findViewById(R.id.group_info_layout);
-                        if (infoLayout != null) {
-                            infoLayout.setVisibility(View.GONE);
-                        }
-                        // 社群频道：隐藏邀请(ADD) 与 踢出(KICK) 快捷项（成员宫格仍保留）
-                        shortcutAdapter.setShowInvite(false);
-                        shortcutAdapter.setShowKick(false);
+                        applyCommunityChannelVisibility();
+                        // 标志变了要重画宫格（ADD/KICK 快捷项由适配器按标志决定是否出现）
                         refreshGroupMembers();
-                        // 社群频道：隐藏「群聊名称」（名称由社群资料管理页维护，频道只读跟随）
-                        View nameRow = binding.getRoot().findViewById(R.id.group_name_row);
-                        if (nameRow != null) {
-                            nameRow.setVisibility(View.GONE);
-                        }
-                        View divider1 = binding.getRoot().findViewById(R.id.chat_setting_divider1);
-                        if (divider1 != null) {
-                            divider1.setVisibility(View.GONE);
-                        }
-                        // 社群频道：禁止展示「群二维码」（社群二维码在管理页，群ID在社群资料）
-                        View qrRowHide = binding.getRoot().findViewById(R.id.group_qr_row);
-                        if (qrRowHide != null) {
-                            qrRowHide.setVisibility(View.GONE);
-                        }
-                        View qrDivHide = binding.getRoot().findViewById(R.id.chat_setting_divider_qr);
-                        if (qrDivHide != null) {
-                            qrDivHide.setVisibility(View.GONE);
-                        }
-                        // 社群频道同样允许：置顶 + 免打扰（按用户设置）
-                        binding.pinChat.setVisibility(View.VISIBLE);
-                        binding.doNotDisturb.setVisibility(View.VISIBLE);
-                        View divider2c = binding.getRoot().findViewById(R.id.chat_setting_divider2);
-                        if (divider2c != null) {
-                            divider2c.setVisibility(View.VISIBLE);
-                        }
                     } else {
                         // 普通群聊（含 2 人群聊）：显示「邀请 / 踢出」快捷项；
                         // 「群聊名称 / 群聊头像」由 applyOwnerOnlyRows() 按群主身份决定
@@ -697,6 +674,64 @@ public class ZIMKitGroupChatSettingActivity extends ComponentActivity {
                 }
             });
         } catch (Exception e) {
+        }
+    }
+
+    /**
+     * **社群频道**的显隐（原样搬自 queryGroupAllAttributes 的 community 分支，行为不变）：
+     * 隐藏 退出群聊 / 群二维码（两处）/ 群ID+复制 / 「邀请」「踢出」快捷项 / 群聊名称行 / 群二维码行；
+     * 置顶 + 免打扰保留。
+     *
+     * <p>两个调用点：① {@code onCreate} 里**同步**调（bizType 缓存命中 → 第一帧就对，见 GroupBizTypeCache）
+     * ② {@code queryGroupAllAttributes} 回来后调（异步权威结果，兜住缓存未命中/猜错）。
+     */
+    private void applyCommunityChannelVisibility() {
+        View exitBtn = binding.getRoot().findViewById(R.id.exit_group_btn);
+        if (exitBtn != null) {
+            exitBtn.setVisibility(View.GONE);
+        }
+        View qrRow = binding.getRoot().findViewById(R.id.qr_code_container);
+        if (qrRow != null) {
+            qrRow.setVisibility(View.GONE);
+        }
+        View qrRow2 = binding.getRoot().findViewById(R.id.group_qr_code);
+        if (qrRow2 != null) {
+            qrRow2.setVisibility(View.GONE);
+        }
+        // 社群频道：隐藏群ID + 复制按钮
+        View infoLayout = binding.getRoot().findViewById(R.id.group_info_layout);
+        if (infoLayout != null) {
+            infoLayout.setVisibility(View.GONE);
+        }
+        // 社群频道：隐藏邀请(ADD) 与 踢出(KICK) 快捷项（成员宫格仍保留）
+        // 注意：不在这里 refreshGroupMembers()（那是"改完标志后重画宫格"的副作用，由调用方决定；
+        //       onCreate 同步路径下第 205 行的 refreshGroupMembers() 已经会带上新标志重画，避免多打一次接口）
+        shortcutAdapter.setShowInvite(false);
+        shortcutAdapter.setShowKick(false);
+        // 社群频道：隐藏「群聊名称」（名称由社群资料管理页维护，频道只读跟随）
+        View nameRow = binding.getRoot().findViewById(R.id.group_name_row);
+        if (nameRow != null) {
+            nameRow.setVisibility(View.GONE);
+        }
+        View divider1 = binding.getRoot().findViewById(R.id.chat_setting_divider1);
+        if (divider1 != null) {
+            divider1.setVisibility(View.GONE);
+        }
+        // 社群频道：禁止展示「群二维码」（社群二维码在管理页，群ID在社群资料）
+        View qrRowHide = binding.getRoot().findViewById(R.id.group_qr_row);
+        if (qrRowHide != null) {
+            qrRowHide.setVisibility(View.GONE);
+        }
+        View qrDivHide = binding.getRoot().findViewById(R.id.chat_setting_divider_qr);
+        if (qrDivHide != null) {
+            qrDivHide.setVisibility(View.GONE);
+        }
+        // 社群频道同样允许：置顶 + 免打扰（按用户设置）
+        binding.pinChat.setVisibility(View.VISIBLE);
+        binding.doNotDisturb.setVisibility(View.VISIBLE);
+        View divider2c = binding.getRoot().findViewById(R.id.chat_setting_divider2);
+        if (divider2c != null) {
+            divider2c.setVisibility(View.VISIBLE);
         }
     }
 

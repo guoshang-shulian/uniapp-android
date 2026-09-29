@@ -50,9 +50,26 @@ public class GroupMemberAdapter extends RecyclerView.Adapter<ViewHolder> {
         return memberList.size();
     }
 
+    /**
+     * 设置成员列表。
+     *
+     * <p>⚠️ 入参**可能为 null**：{@code ZIMKitCore.getInstance().getGroupMemberList(groupId)} 在本地缓存
+     * 还没拉到成员时返回 null（老代码直接 addAll(null) → 崩溃 → 进程重启，用户看到的就是"白屏"）。
+     * 历史崩溃栈：
+     * <pre>
+     * FATAL EXCEPTION: main
+     * java.lang.NullPointerException: ArrayList.addAll on a null object reference
+     *   at java.util.ArrayList.addAll(ArrayList.java:677)
+     *   at GroupMemberAdapter.setMemberList(GroupMemberAdapter.java:55)
+     *   at ZIMKitGroupMembersActivity.onCreate(ZIMKitGroupMembersActivity.java:112)
+     * </pre>
+     * 现在按"空列表"处理，页面先渲染空态，异步名单回来后再 setMemberList 填充。
+     */
     public void setMemberList(List<ZIMKitGroupMemberInfo> memberList) {
         this.memberList.clear();
-        this.memberList.addAll(memberList);
+        if (memberList != null) {
+            this.memberList.addAll(memberList);
+        }
         notifyDataSetChanged();
     }
 

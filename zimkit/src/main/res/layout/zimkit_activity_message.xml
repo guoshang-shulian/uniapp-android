@@ -156,5 +156,69 @@
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintTop_toBottomOf="@id/layout_group_notice" />
 
+    <!-- 4. 悬浮球透明点击代理：与球**同尺寸**（58dp），随球移动但**始终留在屏内**（半隐藏时贴住屏幕边缘）
+         →「只露 32dp」时的可点区仍够大（球本体在屏内那 32dp + 代理多兜出来的内侧一截），
+         又不会像"整宽代理"那样在消息区横切出一条 58dp 的幽灵热区。
+         位置/可见性由 ZIMKitMessageActivity#syncStoreBallHit() 同步。
+         ⚠️ 声明在球**之前**：让它待在球下层，球本体自己处理触摸，代理只兜住球滑出屏外的那部分。 -->
+    <FrameLayout
+        android:id="@+id/store_ball_hit"
+        android:layout_width="58dp"
+        android:layout_height="58dp"
+        android:visibility="invisible"
+        android:clickable="true"
+        android:focusable="true"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- 5. 群聊「社群店铺」悬浮球：叠在消息区之上（位置/手势/显隐全在代码里控制：
+         ZIMKitMessageActivity#setupStoreBall，用 findViewById(R.id.store_ball) 取）
+         群聊才有；是否显示由 /social/group/{id}/store-entry 的 showStore 决定。
+
+         结构：store_ball（58dp 视觉容器：白壳 bg + 40dp 橙圆 + 23×24dp 图标）
+         ⚠️ 坐标契约（踩过大坑，别改回去）：store_ball 必须是根 ConstraintLayout 的直接子 View，
+         约束在 parent 的 start + top（布局位置 = 0,0）→ setX/setY 即"根容器绝对坐标"，
+         与 fra_message.getTop()/getHeight() 同一坐标系。曾把球套进 58dp 高的透明代理：球的 Y 用的是根坐标
+         （实机 1667px），而父容器只有 58dp 高、且 clipChildren 默认 true → 整块裁掉 =「能点、但完全看不见」。
+
+         ⚠️ 不用 View.setTouchDelegate 扩大点击区：bounds 是"**接收事件的父 View 的本地坐标**"，
+         挂到根 ConstraintLayout 上会变成屏幕左上角的一个矩形 → 造出幽灵热区（点顶部空白就进店并关聊天页）。
+         改用**与球同尺寸的透明代理**（见第 5 段）：代理宽 = 球宽且始终留在屏内，半隐藏时兜住露出的那 32dp。 -->
+    <FrameLayout
+        android:id="@+id/store_ball"
+        android:layout_width="58dp"
+        android:layout_height="58dp"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:visibility="invisible"
+        android:clickable="true"
+        android:focusable="true"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+            <!-- 白色背板：按住/拖动中淡出（只留图标）；收起时与容器一起滑出屏幕 -->
+            <View
+                android:id="@+id/store_ball_bg"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/zimkit_shape_store_ball" />
+
+            <View
+                android:id="@+id/store_ball_circle"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_gravity="center"
+                android:background="@drawable/zimkit_shape_store_ball_circle" />
+
+            <ImageView
+                android:id="@+id/store_ball_icon"
+                android:layout_width="23dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:contentDescription="@string/zimkit_store_ball_desc"
+                android:src="@drawable/zimkit_ic_community_store" />
+
+        </FrameLayout>
+
   </androidx.constraintlayout.widget.ConstraintLayout>
 </layout>
