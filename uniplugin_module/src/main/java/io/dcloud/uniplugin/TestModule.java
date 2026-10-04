@@ -1143,7 +1143,31 @@ public class TestModule extends UniModule {
         ZIMKitRouter.toMessageActivity(
             mUniSDKInstance.getContext(),
             conversationID,
-            ZIMKitConversationType.ZIMKitConversationTypePeer
+            ZIMKitConversationType.ZIMKitConversationTypePeer,productJson
+        );
+    }
+
+    @UniJSMethod(uiThread = true)
+    public void openCustomerChat(String conversationID,String product) {
+        groupId = "";
+        ZIMKitMessageFragment.setOnNativeDataListener(new BackToUniappCallback() {
+            @Override
+            public void onDataReceived(String data) {
+            }
+
+            @Override
+            public void onStartCall(String data) {
+            }
+
+            @Override
+            public void onCardAction(String action, String data) {
+                dispatchCardEvent(action, data);
+            }
+        });
+        ZIMKitRouter.toMessageActivity(
+                mUniSDKInstance.getContext(),
+                conversationID,
+                ZIMKitConversationType.ZIMKitConversationTypePeer,product
         );
     }
     public  RoomModel neVoiceRoomInfo2RoomInfo(NEVoiceRoomInfo voiceRoomInfo) {
