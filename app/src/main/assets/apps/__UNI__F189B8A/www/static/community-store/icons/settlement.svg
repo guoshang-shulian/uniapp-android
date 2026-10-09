@@ -1,0 +1,8 @@
+<!-- 社群店铺管理 · 门店管理「结算管理」
+     统一图标规范：viewBox 32×32 / 描边 2 / 圆头圆角 / fill=none / 颜色 = 模块主色 #9079F9
+     内容安全区 4~28；页面显示 56×56rpx（mode=aspectFit，容器 104×104rpx 白底 r16 #EFEFEF 描边） -->
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="16" cy="16" r="11.5" stroke="#9079F9" stroke-width="2"/>
+  <path d="M11 9.8 16 16l5-6.2M16 16v6.6M11.8 17.4h8.4M11.8 20.4h8.4" stroke="#9079F9"
+    stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
