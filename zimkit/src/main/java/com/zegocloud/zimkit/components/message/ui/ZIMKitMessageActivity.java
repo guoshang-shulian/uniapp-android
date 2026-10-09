@@ -12,15 +12,20 @@ import android.widget.Toast;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.lifecycle.ViewModel;
+
+import com.bumptech.glide.Glide;
 import com.zegocloud.zimkit.R;
 import com.zegocloud.zimkit.common.ZIMKitConstant;
 import com.zegocloud.zimkit.common.base.BaseActivity;
+import com.zegocloud.zimkit.common.components.widget.TitleBar;
 import com.zegocloud.zimkit.common.utils.StoreEntryApi;
 import com.zegocloud.zimkit.common.utils.ZIMKitActivityUtils;
 import com.zegocloud.zimkit.components.message.interfaces.ZIMKitMessagesListListener;
 import com.zegocloud.zimkit.components.message.model.ZIMKitHeaderBar;
 import com.zegocloud.zimkit.databinding.ZimkitActivityMessageBinding;
+import com.zegocloud.zimkit.services.ZIMKit;
 import com.zegocloud.zimkit.services.ZIMKitConfig;
+import com.zegocloud.zimkit.services.callback.MessageSentCallback;
 import com.zegocloud.zimkit.services.internal.ZIMKitAdvancedKey;
 import com.zegocloud.zimkit.services.internal.ZIMKitCore;
 import com.zegocloud.zimkit.services.internal.ZIMKitEventHandler;
@@ -29,6 +34,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+
+import im.zego.zim.entity.ZIMError;
+import im.zego.zim.enums.ZIMConversationType;
 
 public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBinding, ViewModel> {
 
@@ -104,6 +112,25 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
         return mListener;
     }
 
+    public void sendShareCard(String conversationId,
+                              String payloadJson) {
+        try {
+            ZIMConversationType type =ZIMConversationType.PEER;
+            ZIMKit.sendCustomMessage(payloadJson, 1,
+                    conversationId, type, new MessageSentCallback() {
+                        @Override
+                        public void onMessageSent(ZIMError errorInfo) {
+                            System.out.println("clicked here oo1");
+                            mBinding.productPreviewCard.setVisibility(View.GONE);
+                        }
+                    });
+        } catch (Exception e) {
+            //   invokeFail(callback, e);
+            System.out.println("clicked here oo2");
+        }
+    }
+    Bundle productX;
+
     @Override
     protected void initView() {
         com.zegocloud.zimkit.common.utils.ZimkitStatusBar.setWhite(this);
@@ -116,6 +143,52 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
         if (bundle == null) {
             finish();
             return;
+        }
+
+        Bundle productB = getIntent().getBundleExtra("product");
+        productX = productB;
+       // bool merchant = false;
+        if(productB != null) {
+            try {
+                String product = productB.getString("product");
+                System.out.println(product);
+                System.out.println("product here");
+                System.out.println(groupId);
+                JSONObject jsonObject = new JSONObject(product);
+                mBinding.productTitle.setText(jsonObject.getString("productName"));
+                mBinding.productPrice.setText(jsonObject.getString("price"));
+                mBinding.productPreviewCard.setVisibility(View.VISIBLE);
+                mBinding.btnCloseProductCard.setOnClickListener(p -> {
+                    System.out.println("clicked here oo");
+                    mBinding.productPreviewCard.setVisibility(View.GONE);
+                });
+                mBinding.btnSendProduct.setOnClickListener(p -> {
+                    try {
+                        JSONObject newObject = new JSONObject();
+                        newObject.put("detail",jsonObject);
+                        newObject.put("version",1);
+                        newObject.put("cardType","product");
+                        String newProduct = newObject.toString();
+                        sendShareCard(groupId,newProduct);
+                    } catch (JSONException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+
+                String imageUrl = jsonObject.getString("productImage");
+                mBinding.titleBar.setTitle(jsonObject.getString("merchantName"));
+
+                Glide.with(mBinding.getRoot().getContext())
+                        .load(imageUrl)
+                        .placeholder(R.drawable.zimkit_icon_album_loading) // While downloading
+                        .error(R.drawable.zimkit_icon_empty_dracula)       // If URL is broken/null
+                        .into(mBinding.productImage);
+//                sendShareCard()
+
+
+            } catch (JSONException e) {
+                throw new RuntimeException(e);
+            }
         }
         mBinding.tvGroupNoticeEnter.setOnClickListener(p -> {
            // System.out.println("finding out here");
@@ -155,7 +228,13 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
 
         String avatar = bundle.getString(ZIMKitConstant.MessagePageConstant.KEY_AVATAR);
         isFromPush = bundle.getBoolean(ZIMKitConstant.MessagePageConstant.KEY_PUSH, false);
-        mBinding.titleBar.setRightImg(R.mipmap.zimkit_icon_more);
+        if(productB == null) {
+            mBinding.titleBar.setRightImg(R.mipmap.zimkit_icon_more);
+        } else{
+//            mBinding.titleBar.removeR
+            mBinding.titleBar.hideRightButton();
+        }
+
         if (type.equals(ZIMKitConstant.MessagePageConstant.TYPE_GROUP_MESSAGE)) {
             mBinding.titleBar.setTitle(!TextUtils.isEmpty(title) ? title : getString(R.string.zimkit_title_group_chat));
             mBinding.titleBar.setRightCLickListener(v -> {
@@ -167,16 +246,18 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
                 startActivity(intent, data);
             });
         } else if (type.equals(ZIMKitConstant.MessagePageConstant.TYPE_SINGLE_MESSAGE)) {
-            mBinding.titleBar.setTitle(!TextUtils.isEmpty(title) ? title : getString(R.string.zimkit_title_chat));
-            mBinding.titleBar.setRightCLickListener(v -> {
-                Bundle data = new Bundle();
-                data.putString(ZIMKitConstant.MessagePageConstant.KEY_ID, id);
-                data.putString(ZIMKitConstant.MessagePageConstant.KEY_TITLE, title);
-                data.putString(ZIMKitConstant.MessagePageConstant.KEY_AVATAR, avatar);
-                Intent intent = new Intent(this, ZIMKitPrivateChatSettingActivity.class);
-                intent.putExtra(ZIMKitConstant.RouterConstant.KEY_BUNDLE, data);
-                startActivity(intent);
-            });
+            if(productB == null) {
+                mBinding.titleBar.setTitle(!TextUtils.isEmpty(title) ? title : getString(R.string.zimkit_title_chat));
+                mBinding.titleBar.setRightCLickListener(v -> {
+                    Bundle data = new Bundle();
+                    data.putString(ZIMKitConstant.MessagePageConstant.KEY_ID, id);
+                    data.putString(ZIMKitConstant.MessagePageConstant.KEY_TITLE, title);
+                    data.putString(ZIMKitConstant.MessagePageConstant.KEY_AVATAR, avatar);
+                    Intent intent = new Intent(this, ZIMKitPrivateChatSettingActivity.class);
+                    intent.putExtra(ZIMKitConstant.RouterConstant.KEY_BUNDLE, data);
+                    startActivity(intent);
+                });
+            }
         }
         fragment = new ZIMKitMessageFragment();
         replaceFragment(fragment, bundle);
@@ -714,6 +795,7 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
         return 0;
     }
 
+
     @Override
     protected void initData() {
         if (isFromPush) {
@@ -766,7 +848,9 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
                 @Override
                 public void setSetTitle(String title) {
                     if (mBinding != null) {
-                        mBinding.titleBar.setTitle(title);
+                        if(productX == null) {
+                            mBinding.titleBar.setTitle(title);
+                        }
                     }
                 }
             });

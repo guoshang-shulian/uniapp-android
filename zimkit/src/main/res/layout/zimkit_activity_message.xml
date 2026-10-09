@@ -79,8 +79,8 @@
             android:id="@+id/product_image"
             android:layout_width="50dp"
             android:layout_height="50dp"
-            android:scaleType="centerCrop"
-            android:src="@drawable/zimkit_icon_empty_dracula" />
+            android:scaleType="centerCrop" />
+
 
         <!-- "X" Close Button (Placed in the top right corner) -->
         <ImageView
@@ -103,7 +103,7 @@
             android:layout_below="@id/btn_close_product_card"
             android:layout_marginTop="4dp"
             android:backgroundTint="#1890FF"
-            android:text="SEND"
+            android:text="发送"
             android:textColor="#FFFFFF"
             android:textSize="11sp"
             android:padding="0dp"/>
