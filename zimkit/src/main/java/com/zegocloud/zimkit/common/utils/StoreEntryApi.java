@@ -5,8 +5,9 @@ package com.zegocloud.zimkit.common.utils;
  *
  * <p><b>为什么需要</b>：群聊页（含社群频道）要在右上角显示"社群店铺"悬浮球，是否显示由业务后端决定
  * （群主可在社群详情里开关；后端已综合「群开启展示 <b>且</b> 群主有审核通过社群店」）。
- * 轻量接口：{@code GET /buyer/social/group/{id}/store-entry} → {@code { showStore, distributionId, groupId }}，
- * 不调 Zego、不查禁言/成员。
+ * 轻量接口：{@code GET /buyer/social/group/{id}/store-entry} → {@code { showStore, distributionId, groupId,
+ * storeLogo, storeName }}，不调 Zego、不查禁言/成员。
+ * {@code showStore=true} 时用 {@code storeLogo} 当悬浮球头像、{@code storeName} 当底部横幅店名。
  *
  * <p><b>为什么要注入</b>：zimkit 是最底层模块（uniplugin_module 依赖它），不能反向引用业务
  * token / baseUrl；所以这里只声明接口，由 uniplugin_module 在 setBusinessConfig 时注册实现
@@ -25,11 +26,22 @@ public final class StoreEntryApi {
         public final boolean showStore;
         public final String distributionId;
         public final String groupId;
+        /** 社群店铺头像（悬浮球铺满显示；空 = 回退成"白壳 + 橙圆 + 图标"） */
+        public final String storeLogo;
+        /** 社群店铺名称（悬浮球底部横幅，最多 4 个字 + 省略号；空 = 不显示横幅） */
+        public final String storeName;
 
         public Entry(boolean showStore, String distributionId, String groupId) {
+            this(showStore, distributionId, groupId, "", "");
+        }
+
+        public Entry(boolean showStore, String distributionId, String groupId,
+                     String storeLogo, String storeName) {
             this.showStore = showStore;
             this.distributionId = distributionId == null ? "" : distributionId;
             this.groupId = groupId == null ? "" : groupId;
+            this.storeLogo = storeLogo == null ? "" : storeLogo;
+            this.storeName = storeName == null ? "" : storeName;
         }
     }
 

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 社群店铺悬浮球 · 店名横幅（贴屏幕【左】缘时的镜像）：黑色 **50%** 透明（#80000000），
+     **右下角 4dp 圆角**，其余三角齐平（横向占满外壳宽度 58dp）
+     （贴右时用 zimkit_shape_store_ball_name.xml） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#80000000" />
+    <corners
+        android:topLeftRadius="0dp"
+        android:topRightRadius="0dp"
+        android:bottomRightRadius="4dp"
+        android:bottomLeftRadius="0dp" />
+</shape>
