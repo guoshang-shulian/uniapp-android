@@ -1,15 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 社群店铺悬浮球容器：58dp 方形，白底，左侧半圆（30dp）右侧齐平（贴屏幕右缘），1dp 描边 #F8F4F7
-     Figma 3036:2515（116×116 @2x，rectangleCornerRadii 60,0,0,60） -->
+<!-- 社群店铺悬浮球容器（白壳）：58×58dp，**纯白填充、无描边**（2026-10 用户确认去掉旧稿的 1dp #F8F4F7 描边）；
+     **贴屏幕右缘时 = 左上/左下圆角 4dp**（设计稿 8rpx ÷2），右侧齐平（贴左用 zimkit_shape_store_ball_left.xml 镜像） -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <solid android:color="#FFFFFF" />
-    <stroke
-        android:width="1dp"
-        android:color="#F8F4F7" />
     <corners
-        android:topLeftRadius="30dp"
-        android:bottomLeftRadius="30dp"
+        android:topLeftRadius="4dp"
+        android:bottomLeftRadius="4dp"
         android:topRightRadius="0dp"
         android:bottomRightRadius="0dp" />
 </shape>

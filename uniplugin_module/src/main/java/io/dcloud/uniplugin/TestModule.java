@@ -2821,7 +2821,9 @@ public class TestModule extends UniModule {
         // 极冷启动（点悬浮球时 uniapp 还没起来）→ 由这里把 uniapp 拉起来（zimkit 不能反向依赖本模块）
         com.zegocloud.zimkit.common.utils.UniappEventApi.setLauncher(this::bringUniappToFront);
         // 聊天页「社群店铺」悬浮球：显隐由业务后端决定（群主开关 + 群主有 PASS 店铺，后端已综合）。
-        // 轻量接口 GET /buyer/social/group/{id}/store-entry → { showStore, distributionId, groupId }
+        // 轻量接口 GET /buyer/social/group/{id}/store-entry
+        //   → { showStore, distributionId, groupId, storeLogo, storeName }
+        // 其中 storeLogo 当悬浮球头像（铺满 58×58）、storeName 当底部横幅店名（最多 4 字 + 省略号）。
         // zimkit 不能反向依赖业务 token → 这里注入实现（与 GroupProfileApi 同一套路）。
         com.zegocloud.zimkit.common.utils.StoreEntryApi.setFetcher((groupId, callback) -> {
             try {
@@ -2839,9 +2841,16 @@ public class TestModule extends UniModule {
                             }
                             boolean show = Boolean.TRUE.equals(result.getBoolean("showStore"));
                             String distributionId = result.getString("distributionId");
+                            // 头像 / 店名：后端没给就为空串（前端据此回退成"白壳+橙圆+图标"、不显示店名横幅）
+                            String storeLogo = result.getString("storeLogo");
+                            String storeName = result.getString("storeName");
+                            android.util.Log.i("StoreEntry", "gid=" + groupId + " show=" + show
+                                + " distributionId=" + distributionId
+                                + " storeName=" + storeName + " logoLen="
+                                + (storeLogo == null ? 0 : storeLogo.length()));
                             if (callback != null) {
                                 callback.onResult(new com.zegocloud.zimkit.common.utils.StoreEntryApi.Entry(
-                                    show, distributionId, groupId));
+                                    show, distributionId, groupId, storeLogo, storeName));
                             }
                         }
 

@@ -196,13 +196,14 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
-            <!-- 白色背板：按住/拖动中淡出（只留图标）；收起时与容器一起滑出屏幕 -->
+            <!-- 白色背板（白边 1dp #F8F4F7）：**始终保留**；按住/拖动中淡出；没拿到头像时里面是橙圆 + 图标 -->
             <View
                 android:id="@+id/store_ball_bg"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:background="@drawable/zimkit_shape_store_ball" />
 
+            <!-- 兜底内容（storeLogo 为空时可见，与改动前完全一致）：40dp 橙圆 + 23×24 图标 -->
             <View
                 android:id="@+id/store_ball_circle"
                 android:layout_width="40dp"
@@ -217,6 +218,35 @@
                 android:layout_gravity="center"
                 android:contentDescription="@string/zimkit_store_ball_desc"
                 android:src="@drawable/zimkit_ic_community_store" />
+
+            <!-- 社群店铺头像（storeLogo）：**52×52dp**（设计稿 矩形2），在 58×58 外壳里居中 →
+                 **上下左右各留 3dp** 白边；四个角 4dp 圆角（Glide RoundedCorners 直接裁位图，见 bindStoreBallInfo）。
+                 拿不到 logo 时 GONE → 回退上面的橙圆 + 图标 -->
+            <ImageView
+                android:id="@+id/store_ball_avatar"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:layout_gravity="center"
+                android:contentDescription="@string/zimkit_store_ball_desc"
+                android:scaleType="centerCrop"
+                android:visibility="gone" />
+
+            <!-- 店铺名横幅（storeName）：宽度与外壳**同宽**（58dp，无左右边距）、贴在球体底部（15dp 高）；
+                 黑色 50% 透明（#80000000）+ 白字 10dp（20rpx÷2），**一行、超出按宽度省略**；
+                 下角圆角 4dp（8rpx÷2）与外壳同侧，见 zimkit_shape_store_ball_name{,_left}.xml（代码按吸附侧切换） -->
+            <TextView
+                android:id="@+id/store_ball_name"
+                android:layout_width="match_parent"
+                android:layout_height="15dp"
+                android:layout_gravity="bottom"
+                android:background="@drawable/zimkit_shape_store_ball_name"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:textColor="#FFFFFF"
+                android:textSize="10dp"
+                android:visibility="gone" />
 
         </FrameLayout>
 

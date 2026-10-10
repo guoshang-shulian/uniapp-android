@@ -1,12 +1,18 @@
 package com.zegocloud.zimkit.components.message.ui;
 
 import android.content.Intent;
+import android.graphics.Outline;
+import android.graphics.Path;
+import android.graphics.RectF;
 import android.os.Bundle;
 import android.os.Handler;
 import android.text.TextUtils;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewOutlineProvider;
 import android.view.ViewTreeObserver;
+import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.fragment.app.Fragment;
@@ -80,6 +86,18 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
     private View storeBallBg;
     private View storeBallCircle;
     private View storeBallIcon;
+    /** 社群店铺头像（storeLogo，铺满 58×58；空 → GONE，回退白壳+橙圆+图标） */
+    private ImageView storeBallAvatar;
+    /** 店铺名横幅（storeName，贴在头像最下面：透明黑底 + 白字，最多 4 字 + 省略号；空 → GONE） */
+    private TextView storeBallName;
+    /** 头像边长(dp)：设计稿 矩形2 = 52，在 58 的外壳里上下左右各留 3（与布局 store_ball_avatar 的 52dp 一致） */
+    private static final int STORE_BALL_AVATAR_DP = 52;
+    /** 球壳"贴边侧两个角"的圆角半径(dp)——设计稿 8rpx ÷2 = 4dp（与 zimkit_shape_store_ball{,_left}.xml 一致） */
+    private static final int STORE_BALL_CORNER_DP = 4;
+    /** 头像四个角的圆角半径(dp)——设计稿 8rpx ÷2 = 4dp */
+    private static final int STORE_BALL_AVATAR_CORNER_DP = 4;
+    private String storeLogo = "";
+    private String storeName = "";
     private String storeDistributionId = "";
     private int storeBallW;
     private int storeBallH;
@@ -318,13 +336,18 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
         storeBallBg = findViewById(R.id.store_ball_bg);
         storeBallCircle = findViewById(R.id.store_ball_circle);
         storeBallIcon = findViewById(R.id.store_ball_icon);
+        storeBallAvatar = findViewById(R.id.store_ball_avatar);
+        storeBallName = findViewById(R.id.store_ball_name);
         android.util.Log.i("StoreEntry", "setupStoreBall gid=" + gid + " ball=" + storeBall
             + " hit=" + storeBallHit + " bg=" + storeBallBg
-            + " circle=" + storeBallCircle + " icon=" + storeBallIcon);
+            + " circle=" + storeBallCircle + " icon=" + storeBallIcon
+            + " avatar=" + storeBallAvatar + " name=" + storeBallName);
         if (storeBall == null || storeBallHit == null) {
             android.util.Log.w("StoreEntry", "setupStoreBall aborted: 布局里找不到悬浮球控件");
             return;
         }
+        // 头像/店名横幅都按容器形状裁圆角（贴边圆角朝里，贴左镜像 → 见 applyStoreBallOutline）
+        applyStoreBallOutline();
         // 进店走的是触摸回调里的 ACTION_UP（onClick 在本页被 RecyclerView 的触摸拦截吃掉了，实测 onClick 从不触发）
         storeBall.setOnTouchListener(this::handleStoreBallTouch);
         // **透明代理也接同一套触摸**：半隐藏时球本体大半在屏幕外，代理负责"把可点区域放大"
@@ -391,8 +414,124 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
                 return;
             }
             storeDistributionId = entry.distributionId;
+            storeLogo = entry.storeLogo == null ? "" : entry.storeLogo;
+            storeName = entry.storeName == null ? "" : entry.storeName;
             showStoreBall();
         }));
+    }
+
+    /**
+     * 头像 + 店名：都在拿到 store-entry 结果后一次性绑定
+     * <ul>
+     *   <li>{@code storeLogo} 非空 → 头像（24×24dp，四个小圆角）显示、橙圆/固定图标收起；
+     *       空或加载失败 → 回退成原来的「橙圆 + 图标」；</li>
+     *   <li>{@code storeName} 非空 → 底部横幅显示，**一行、超出按宽度省略**（`maxLines=1` + `ellipsize=end`，
+     *       与普通文本一样，不再按字数截断）。</li>
+     * </ul>
+     */
+    private void bindStoreBallInfo() {
+        if (storeBallName != null) {
+            String name = storeName == null ? "" : storeName.trim();
+            if (name.isEmpty()) {
+                storeBallName.setVisibility(View.GONE);
+            } else {
+                storeBallName.setText(name);
+                storeBallName.setAlpha(1f);
+                storeBallName.setVisibility(View.VISIBLE);
+            }
+        }
+        if (storeBallAvatar != null) {
+            String logo = storeLogo == null ? "" : storeLogo.trim();
+            if (logo.isEmpty()) {
+                // 没头像：回到原来的「白壳 + 橙圆 + 图标」
+                storeBallAvatar.setVisibility(View.GONE);
+                setStoreBallPlaceholderVisible(true);
+            } else {
+                // 有头像：头像 52×52（球里四边各留 3dp），把橙圆/固定图标收起来（否则会压到头像下面）
+                storeBallAvatar.setVisibility(View.VISIBLE);
+                setStoreBallPlaceholderVisible(false);
+                Glide.with(storeBallAvatar.getContext())
+                    .load(logo)
+                    // ⚠️ 不能写成 `.centerCrop().transform(...)`：Glide 的 transform() 会**替换**掉之前设置的变换，
+                    //    CenterCrop 被顶掉 → 位图不缩到视图尺寸，RoundedCorners(4dp) 是按**原始大图**（如 750×640）算的，
+                    //    缩放显示到 52dp 后实际圆角只剩约 1dp → 表现就是"头像没有圆角"（实测踩过）。
+                    //    正确写法：**同一个 transform() 里按顺序**给 CenterCrop + RoundedCorners。
+                    .transform(new com.bumptech.glide.load.resource.bitmap.CenterCrop(),
+                        new com.bumptech.glide.load.resource.bitmap.RoundedCorners(
+                            dp(STORE_BALL_AVATAR_CORNER_DP)))
+                    // 明确按头像框尺寸解码：保证 RoundedCorners 的 4dp 是相对 52dp 的图算的（否则跟测量时机有关）
+                    .override(dp(STORE_BALL_AVATAR_DP), dp(STORE_BALL_AVATAR_DP))
+                    // 图挂了也留个可见的东西：回退成原来的图标（橙圆已隐藏，白壳仍在）
+                    .error(R.drawable.zimkit_ic_community_store)
+                    .into(storeBallAvatar);
+            }
+        }
+        android.util.Log.i("StoreEntry", "bindStoreBallInfo name=" + storeName
+            + " avatar=" + (storeLogo == null || storeLogo.isEmpty() ? "none" : "set"));
+    }
+
+    /** 橙圆 + 固定图标（无头像时的兜底内容）一起显示/隐藏 */
+    private void setStoreBallPlaceholderVisible(boolean visible) {
+        int v = visible ? View.VISIBLE : View.GONE;
+        if (storeBallCircle != null) {
+            storeBallCircle.setVisibility(v);
+        }
+        if (storeBallIcon != null) {
+            storeBallIcon.setVisibility(v);
+        }
+    }
+
+    /**
+     * 圆角（两套，都靠 outline + clipToOutline 裁；改半径只改这里 + 两个 shape drawable）：
+     * <ul>
+     *   <li>球壳 {@code store_ball}：**小圆角 12dp**，只圆"贴边侧"两个角
+     *       （贴右 = 左上/左下；贴左 = 右上/右下，见 {@link #applyStoreBallSideShape()}），另一侧齐平；</li>
+     *   <li>头像 {@code store_ball_avatar}：**四个角都是小圆角 6dp**。</li>
+     * </ul>
+     */
+    private void applyStoreBallOutline() {
+        if (storeBall == null) {
+            return;
+        }
+        // ① 球壳：贴边侧两角圆 12dp（与 zimkit_shape_store_ball{,_left}.xml 的 12dp 一致）
+        storeBall.setOutlineProvider(new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, Outline outline) {
+                int w = view.getWidth();
+                int h = view.getHeight();
+                if (w <= 0 || h <= 0) {
+                    return;
+                }
+                float r = dp(STORE_BALL_CORNER_DP);
+                // 顺序 = [左上, 右上, 右下, 左下]（每个角 x/y 两个值）
+                float[] radii = storeBallAtLeft
+                    ? new float[]{0f, 0f, r, r, r, r, 0f, 0f}   // 贴左：右上 / 右下圆
+                    : new float[]{r, r, 0f, 0f, 0f, 0f, r, r};   // 贴右：左上 / 左下圆
+                Path path = new Path();
+                path.addRoundRect(new RectF(0f, 0f, w, h), radii, Path.Direction.CW);
+                outline.setConvexPath(path);
+            }
+        });
+        storeBall.setClipToOutline(true);
+        // ② 头像：四个小圆角（双保险：即使父容器不裁子 View，头像四角也不会漏成直角）
+        if (storeBallAvatar != null) {
+            storeBallAvatar.setOutlineProvider(new ViewOutlineProvider() {
+                @Override
+                public void getOutline(View view, Outline outline) {
+                    int w = view.getWidth();
+                    int h = view.getHeight();
+                    if (w <= 0 || h <= 0) {
+                        return;
+                    }
+                    float r = dp(STORE_BALL_AVATAR_CORNER_DP);
+                    Path path = new Path();
+                    path.addRoundRect(new RectF(0f, 0f, w, h),
+                        new float[]{r, r, r, r, r, r, r, r}, Path.Direction.CW);
+                    outline.setConvexPath(path);
+                }
+            });
+            storeBallAvatar.setClipToOutline(true);
+        }
     }
 
     private void showStoreBall() {
@@ -411,11 +550,17 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
         computeStoreBallMetrics();
         repositionStoreBall();
         applyStoreBallSideShape();
-        // 内部元素回展开态（容器居中：白壳 + 橙圆 + 图标）
+        // 内部元素回展开态（容器居中：头像/白壳 + 橙圆 + 图标）
         applyStoreBallContent(0);
+        // 头像 + 店名横幅（store-entry 已经拿到，这里一次性绑定）
+        bindStoreBallInfo();
         storeBallHidden = false;
         storeBallBg.animate().cancel();
         storeBallBg.setAlpha(1f);
+        if (storeBallName != null) {
+            storeBallName.animate().cancel();
+            storeBallName.setAlpha(1f);
+        }
         storeBallHit.setVisibility(View.VISIBLE);
         storeBall.setVisibility(View.VISIBLE);
         storeBall.setAlpha(STORE_BALL_ALPHA);      // 与消息重叠 → 半透明
@@ -534,9 +679,13 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
                     storeBallDragging = true;
                     storeBall.setScaleX(1.05f);
                     storeBall.setScaleY(1.05f);
-                    // 拖动中淡出白色外壳，只留橙圆 + 图标
+                    // 拖动中淡出白色外壳 + 店名横幅 → 有头像时只留头像（等价于改动前的「只留橙圆 + 图标」）
                     storeBallBg.animate().cancel();
                     storeBallBg.animate().alpha(0f).setDuration(120).start();
+                    if (storeBallName != null) {
+                        storeBallName.animate().cancel();
+                        storeBallName.animate().alpha(0f).setDuration(120).start();
+                    }
                 }
                 if (!storeBallDragging) {
                     return true;
@@ -646,6 +795,10 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
         computeStoreBallMetrics();
         storeBallBg.animate().cancel();
         storeBallBg.setAlpha(1f);          // 吸附态：白壳回来（收起态已改为容器整体滑出 + 背板淡出）
+        if (storeBallName != null) {
+            storeBallName.animate().cancel();
+            storeBallName.setAlpha(1f);
+        }
         boolean wasHideIntent = dragHideIntent;
         dragHideIntent = false;
         // ① 从收起态拖出来 / ② 拖动中已判定为"收进去" → 直接半隐藏
@@ -665,6 +818,19 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
         storeBallBg.setBackgroundResource(storeBallAtLeft
             ? R.drawable.zimkit_shape_store_ball_left
             : R.drawable.zimkit_shape_store_ball);
+        // 店名横幅的圆角与白壳同侧同款（贴右=左下圆、贴左=右下圆）
+        if (storeBallName != null) {
+            storeBallName.setBackgroundResource(storeBallAtLeft
+                ? R.drawable.zimkit_shape_store_ball_name_left
+                : R.drawable.zimkit_shape_store_ball_name);
+        }
+        // 头像 / 店名横幅的圆角跟着一起镜像（invalidateOutline 让新的圆角立刻生效）
+        if (storeBall != null) {
+            storeBall.invalidateOutline();
+        }
+        if (storeBallAvatar != null) {
+            storeBallAvatar.invalidateOutline();
+        }
     }
 
     /** 展开：容器归位贴边（内部元素无位移）+ 白壳回来 + 让代理跟上 */
@@ -680,9 +846,15 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
         storeBallHidden = false;
         applyStoreBallSideShape();
         storeBallBg.animate().cancel();
+        if (storeBallName != null) {
+            storeBallName.animate().cancel();
+        }
         applyStoreBallContent(animated ? 200 : 0);
         if (animated) {
             storeBallBg.animate().alpha(1f).setDuration(200).start();
+            if (storeBallName != null) {
+                storeBallName.animate().alpha(1f).setDuration(200).start();
+            }
             storeBall.animate()
                 .x(storeBallBaseX)
                 .alpha(STORE_BALL_ALPHA)
@@ -690,6 +862,9 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
                 .start();
         } else {
             storeBallBg.setAlpha(1f);
+            if (storeBallName != null) {
+                storeBallName.setAlpha(1f);
+            }
             storeBall.setX(storeBallBaseX);
             storeBall.setAlpha(STORE_BALL_ALPHA);
         }
@@ -709,9 +884,13 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
         storeBallHidden = true;
         applyStoreBallSideShape();
         applyStoreBallContent(STORE_BALL_ANIM_MS);
-        // 白壳**保持可见**：收起时它是"贴在屏幕边缘的白色小标签"，与露出的橙弧一起构成半隐藏外观
+        // 白壳**保持可见**：收起时它是"贴在屏幕边缘的白色小标签"，与露出的橙弧/头像一起构成半隐藏外观
         storeBallBg.animate().cancel();
         storeBallBg.setAlpha(1f);
+        if (storeBallName != null) {
+            storeBallName.animate().cancel();
+            storeBallName.setAlpha(1f);
+        }
         float targetX = computeCollapsedContainerX();
         storeBall.animate()
             .x(targetX)
@@ -905,6 +1084,12 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
             }
             if (storeBallIcon != null) {
                 storeBallIcon.animate().cancel();
+            }
+            if (storeBallAvatar != null) {
+                storeBallAvatar.animate().cancel();
+            }
+            if (storeBallName != null) {
+                storeBallName.animate().cancel();
             }
         } catch (Exception ignored) {
         }
