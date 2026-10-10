@@ -73,6 +73,7 @@ import im.zego.zim.callback.ZIMFriendListQueriedCallback;
 import im.zego.zim.callback.ZIMFriendsDeletedCallback;
 import im.zego.zim.callback.ZIMFriendsInfoQueriedCallback;
 import im.zego.zim.callback.ZIMFriendsSearchedCallback;
+import im.zego.zim.callback.ZIMGroupCreatedCallback;
 import im.zego.zim.callback.ZIMGroupMemberKickedCallback;
 import im.zego.zim.callback.ZIMGroupMembersMutedCallback;
 import im.zego.zim.callback.ZIMGroupUsersInvitedCallback;
@@ -82,6 +83,9 @@ import com.zegocloud.zimkit.services.callback.MessageSentCallback;
 import im.zego.zim.callback.ZIMGroupMemberListQueriedCallback;
 import im.zego.zim.callback.ZIMGroupDismissedCallback;
 import im.zego.zim.callback.ZIMGroupOwnerTransferredCallback;
+import im.zego.zim.entity.ZIMGroupAdvancedConfig;
+import im.zego.zim.entity.ZIMGroupFullInfo;
+import im.zego.zim.entity.ZIMGroupInfo;
 import im.zego.zim.entity.ZIMGroupMemberQueryConfig;
 import com.zegocloud.zimkit.services.callback.LeaveGroupCallback;
 import im.zego.zim.callback.ZIMConversationDeletedCallback;
@@ -113,6 +117,8 @@ import im.zego.zim.enums.ZIMConnectionEvent;
 import im.zego.zim.enums.ZIMConnectionState;
 import im.zego.zim.enums.ZIMConversationType;
 import im.zego.zim.enums.ZIMErrorCode;
+import im.zego.zim.enums.ZIMGroupInviteMode;
+import im.zego.zim.enums.ZIMGroupJoinMode;
 import io.dcloud.feature.uniapp.annotation.UniJSMethod;
 import io.dcloud.feature.uniapp.bridge.UniJSCallback;
 import io.dcloud.feature.uniapp.common.UniModule;
@@ -1148,27 +1154,98 @@ public class TestModule extends UniModule {
     }
 
     @UniJSMethod(uiThread = true)
-    public void openCustomerChat(String conversationID,String product) {
-        groupId = "";
-        ZIMKitMessageFragment.setOnNativeDataListener(new BackToUniappCallback() {
-            @Override
-            public void onDataReceived(String data) {
-            }
+    public void openCustomerChat(String conversationID,String sellerName, String sellerProile,String buyerName, String buyerProfile,String userId,String product) {
+        System.out.println(conversationID);
+        System.out.println(userId);
+        System.out.println(sellerName);
+        System.out.println(sellerProile);
+        System.out.println(buyerName);
+        System.out.println(buyerProfile);
+        System.out.println("print out here");
+        ZIMGroupInfo groupInfo = new ZIMGroupInfo();
+        groupInfo.groupID = conversationID;
+        String groupNo = groupInfo.groupID;
+        groupInfo.groupName = "客服";
+        groupInfo.groupAvatarUrl = "groupAvatarUrl";
+        ZIMGroupAdvancedConfig config = new ZIMGroupAdvancedConfig();
+        HashMap<String, String> attributes = new HashMap<>();
+        attributes.put("seller_name", sellerName);
+        attributes.put("seller_profile", sellerProile);
+        attributes.put("buyer_name", buyerName);
+        attributes.put("name",buyerProfile);
+        config.groupAttributes = attributes;
+// 主动加群验证模式
+        config.joinMode = ZIMGroupJoinMode.ANY;
+// 邀请进群验证模式
+        config.inviteMode = ZIMGroupInviteMode.ANY;
+        config.maxMemberCount = 300;
 
-            @Override
-            public void onStartCall(String data) {
-            }
+        ArrayList<String> userList = new ArrayList<>();
+        userList.add(userId);
 
+        im.zego.zim.ZIM.getInstance().createGroup(groupInfo, userList, config, new ZIMGroupCreatedCallback() {
             @Override
-            public void onCardAction(String action, String data) {
-                dispatchCardEvent(action, data);
+            public void onGroupCreated(ZIMGroupFullInfo groupInfo, ArrayList<ZIMGroupMemberInfo> userIDs, ArrayList<ZIMErrorUserInfo> errorUserList, ZIMError errorInfo) {
+                // 通过 errorInfo.code 获取创建群的结果
+                if(errorInfo != null){
+                    System.out.println(errorInfo.message);
+                    System.out.println("print out here");
+                }
+                ZIMKitRouter.toMessageActivity1(mUniSDKInstance.getContext(), groupNo, ZIMKitConversationType.ZIMKitConversationTypeGroup,product,sellerName);
             }
         });
-        ZIMKitRouter.toMessageActivity(
-                mUniSDKInstance.getContext(),
-                conversationID,
-                ZIMKitConversationType.ZIMKitConversationTypePeer,product
-        );
+//        groupId = "";
+//        ZIMKitMessageFragment.setOnNativeDataListener(new BackToUniappCallback() {
+//            @Override
+//            public void onDataReceived(String data) {
+//            }
+//
+//            @Override
+//            public void onStartCall(String data) {
+//            }
+//
+//            @Override
+//            public void onCardAction(String action, String data) {
+//                dispatchCardEvent(action, data);
+//            }
+//        });
+//        ZIMKitRouter.toMessageActivity(
+//                mUniSDKInstance.getContext(),
+//                conversationID,
+//                ZIMKitConversationType.ZIMKitConversationTypePeer,product
+//        );
+    }
+
+    @UniJSMethod(uiThread = true)
+    public void openCustomerChat2(String conversationID,String sellerName, String sellerProile,String buyerName, String buyerProfile,String userId) {
+        ZIMGroupInfo groupInfo = new ZIMGroupInfo();
+        groupInfo.groupID = conversationID;
+        String groupNo = groupInfo.groupID;
+        groupInfo.groupName = "客服";
+        groupInfo.groupAvatarUrl = "groupAvatarUrl";
+        ZIMGroupAdvancedConfig config = new ZIMGroupAdvancedConfig();
+        HashMap<String, String> attributes = new HashMap<>();
+        attributes.put("seller_name", sellerName);
+        attributes.put("seller_profile", sellerProile);
+        attributes.put("buyer_name", buyerName);
+        attributes.put("name",buyerProfile);
+        config.groupAttributes = attributes;
+// 主动加群验证模式
+        config.joinMode = ZIMGroupJoinMode.ANY;
+// 邀请进群验证模式
+        config.inviteMode = ZIMGroupInviteMode.ANY;
+        config.maxMemberCount = 300;
+
+        ArrayList<String> userList = new ArrayList<>();
+        userList.add(userId);
+
+        im.zego.zim.ZIM.getInstance().createGroup(groupInfo, userList, config, new ZIMGroupCreatedCallback() {
+            @Override
+            public void onGroupCreated(ZIMGroupFullInfo groupInfo, ArrayList<ZIMGroupMemberInfo> userIDs, ArrayList<ZIMErrorUserInfo> errorUserList, ZIMError errorInfo) {
+                // 通过 errorInfo.code 获取创建群的结果
+                ZIMKitRouter.toMessageActivity1(mUniSDKInstance.getContext(), groupNo, ZIMKitConversationType.ZIMKitConversationTypeGroup,sellerName);
+            }
+        });
     }
     public  RoomModel neVoiceRoomInfo2RoomInfo(NEVoiceRoomInfo voiceRoomInfo) {
         if (voiceRoomInfo == null) {
@@ -1252,6 +1329,72 @@ public class TestModule extends UniModule {
             }
         });
         ZIMKitRouter.toMessageActivity(mUniSDKInstance.getContext(), conversationID, ZIMKitConversationType.ZIMKitConversationTypeGroup);
+    }
+
+    @UniJSMethod(uiThread = true)
+    public void startTradeChat(String conversationID, String name) {
+
+        ZIMKitMessageActivity.setOnNativeDataListener(new BackToUniappCallback() {
+            @Override
+            public void onDataReceived(String data) {
+                System.out.println("reached level 1");
+
+                // Pass the raw data string directly
+                JSONObject jsonObject = JSON.parseObject(data);
+
+                System.out.println( data);
+                System.out.println("JSON Object: " + jsonObject.toString());
+                System.out.println("reached level 2");
+
+                // 3. Extract just the "data" object string block
+                String dataJson = jsonObject.getJSONObject("data").toString();
+                // 4. Decode it directly into your NEVoiceRoomInfo model
+                Gson gson = new Gson();
+                NEVoiceRoomInfo voiceRoomInfo = gson.fromJson(dataJson, NEVoiceRoomInfo.class);
+                System.out.println(voiceRoomInfo);
+                System.out.println(voiceRoomInfo.getAnchor());
+                System.out.println("reached level 3");
+                RoomModel info = neVoiceRoomInfo2RoomInfo(voiceRoomInfo);
+                System.out.println("reached level 4");
+                System.out.println(info);
+                LoginUtil.join( mUniSDKInstance.getContext(),info,avatar,userName);
+            }
+
+            @Override
+            public void onStartCall(String data){
+
+            }
+
+            @Override
+            public void onCardAction(String action, String data) {
+                dispatchCardEvent(action, data);
+            }
+        });
+
+        ZIMKitMessageFragment.setOnNativeDataListener(new BackToUniappCallback() {
+            @Override
+            public void onDataReceived(String data) {
+
+            }
+
+            @Override
+            public void onStartCall(String data){
+                Intent intent = new Intent(mUniSDKInstance.getContext(), VoiceRoomCreateActivity.class);
+                intent.putExtra(RoomConstants.INTENT_IS_OVERSEA, AppConfig.isOversea());
+                intent.putExtra("groupId", conversationID);
+                intent.putExtra(RoomConstants.INTENT_KEY_CONFIG_ID, AppConfig.getVoiceRoomConfigId());
+                intent.putExtra(RoomConstants.INTENT_USER_NAME, AppUtils.getUserName());
+                intent.putExtra(RoomConstants.INTENT_AVATAR, AppUtils.getAvatar());
+                mUniSDKInstance.getContext().startActivity(intent);
+            }
+
+            @Override
+            public void onCardAction(String action, String data) {
+                dispatchCardEvent(action, data);
+            }
+        });
+//        String seller = "当当百货";
+        ZIMKitRouter.toMessageActivity1(mUniSDKInstance.getContext(), conversationID, ZIMKitConversationType.ZIMKitConversationTypeGroup,name);
     }
     private static final int REQUEST_CODE_CHOOSE_IMAGE = 4221;
     private UniJSCallback jsCallback;
@@ -1342,8 +1485,48 @@ public class TestModule extends UniModule {
         });
     }
 
+
+    @UniJSMethod(uiThread = true)
+    public void createCustomerGroup(String groupName, String groupID, List<String> userIDs, String avatarUrl) {
+        // 创建一个群组
+// groupID 最大 32 字节的字符串。仅支持数字，英文字符 和 '!', '#', '$', '%', '&', '(', ')', '+', '-', ':', ';', '<', '=', '.', '>', '?', '@', '[', ']', '^', '_', '{', '}', '|', '~'，且不能以 ’#‘ 开头。
+// groupName 最大 50 字节的字符串，无特殊字符限制。
+        ZIMGroupInfo groupInfo = new ZIMGroupInfo();
+        groupInfo.groupID = "kefu_user1_user2";
+        String groupNo = groupInfo.groupID;
+        groupInfo.groupName = "客服";
+        groupInfo.groupAvatarUrl = "groupAvatarUrl";
+        ZIMGroupAdvancedConfig config = new ZIMGroupAdvancedConfig();
+        HashMap<String, String> attributes = new HashMap<>();
+        attributes.put("seller_name", "铛铛百货");
+        attributes.put("seller_profile", "https://maite-duanju.oss-cn-beijing.aliyuncs.com/MEMBER/1997111965385795022/default/8f9dc752f3a542e99215231ab5b05cfa.jpg");
+        attributes.put("buyer_name", "贝纳");
+        attributes.put("name","https://test.ioevisa.com/pics/coin.png");
+        config.groupAttributes = attributes;
+// 主动加群验证模式
+        config.joinMode = ZIMGroupJoinMode.ANY;
+// 邀请进群验证模式
+        config.inviteMode = ZIMGroupInviteMode.ANY;
+        config.maxMemberCount = 300;
+
+        ArrayList<String> userList = new ArrayList<>();
+        userList.add("user_1997111965385795022");
+
+        im.zego.zim.ZIM.getInstance().createGroup(groupInfo, userList, config, new ZIMGroupCreatedCallback() {
+            @Override
+            public void onGroupCreated(ZIMGroupFullInfo groupInfo, ArrayList<ZIMGroupMemberInfo> userIDs, ArrayList<ZIMErrorUserInfo> errorUserList, ZIMError errorInfo) {
+                // 通过 errorInfo.code 获取创建群的结果
+                ZIMKitRouter.toMessageActivity(mUniSDKInstance.getContext(), groupNo, ZIMKitConversationType.ZIMKitConversationTypeGroup);
+            }
+        });
+    }
+
     @UniJSMethod(uiThread = true)
     public void createGroup(String groupName, String groupID, List<String> userIDs, String avatarUrl) {
+        //createGroup();
+//        ZIMKit.u
+       // im.zego.zim.ZIM.getInstance().createGroup();
+
         ZIMKit.createGroup(groupName, groupID, userIDs, new CreateGroupCallback() {
             @Override
             public void onCreateGroup(ZIMKitGroupInfo groupInfo, ArrayList<ZIMErrorUserInfo> inviteUserErrors, ZIMError error) {
@@ -1830,6 +2013,8 @@ public class TestModule extends UniModule {
                 try {
                     loadPeerConversations();
                     loadGroupConversations();
+                    loadBuyerConversations();
+                    loadSellerConversations();
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -1892,11 +2077,12 @@ public class TestModule extends UniModule {
     private static void loadGroupConversations() {
         ZIMConversationQueryConfig config = new ZIMConversationQueryConfig();
         config.count = 100;
-
+      //filter
         ZIMConversationFilterOption filterOption = new ZIMConversationFilterOption();
         filterOption.conversationTypes = new ArrayList<>();
         filterOption.conversationTypes.add(ZIMConversationType.GROUP); // Zego server filters to 1-vs-1 only
-
+        ArrayList<Integer> marksList = new ArrayList<>(Arrays.asList(0));
+        filterOption.marks = marksList;
         ZegoSignalingPlugin.getInstance().queryConversationList(config, filterOption, (conversationList, errorInfo) -> {
             if (errorInfo.code != ZIMErrorCode.SUCCESS) {
                 System.out.println("SaaS Sync Fault: " + errorInfo.message);
@@ -1915,6 +2101,72 @@ public class TestModule extends UniModule {
                     android.util.Log.w("SaaS Sync", "queryGroupList fail: " + groupError.message);
                 }
                 pushGroupConversations(conversationList, groups);
+            });
+        });
+    }
+
+    private static void loadBuyerConversations() {
+        ZIMConversationQueryConfig config = new ZIMConversationQueryConfig();
+        config.count = 100;
+        //filter
+        ZIMConversationFilterOption filterOption = new ZIMConversationFilterOption();
+        filterOption.conversationTypes = new ArrayList<>();
+        filterOption.conversationTypes.add(ZIMConversationType.GROUP); // Zego server filters to 1-vs-1 only
+        ArrayList<Integer> marksList = new ArrayList<>(Arrays.asList(1));
+        filterOption.marks = marksList;
+        ZegoSignalingPlugin.getInstance().queryConversationList(config, filterOption, (conversationList, errorInfo) -> {
+            if (errorInfo.code != ZIMErrorCode.SUCCESS) {
+                System.out.println("SaaS Sync Fault: " + errorInfo.message);
+                return;
+            }
+            if (conversationList == null) {
+                return;
+            }
+            if (conversationList.isEmpty()) {
+                System.out.println("SaaS Sync: group conversation list empty");
+            }
+            System.out.println("buyer convert list has items "+conversationList.size());
+            // 群名/群头像以覆盖表（服务端权威值）为准合并，覆盖表没有的再退回 queryGroupList
+            // （queryGroupList 是本地缓存，只在"从未改过头像"时够用）
+            zimInstance().queryGroupList((groups, groupError) -> {
+                if (groupError != null && groupError.code != ZIMErrorCode.SUCCESS) {
+                    android.util.Log.w("SaaS Sync", "queryGroupList fail: " + groupError.message);
+                }
+                pushCustomerConversations(conversationList, groups,"buyer");
+            });
+        });
+    }
+
+    private static void loadSellerConversations() {
+        ZIMConversationQueryConfig config = new ZIMConversationQueryConfig();
+        config.count = 100;
+        //filter
+        ZIMConversationFilterOption filterOption = new ZIMConversationFilterOption();
+        filterOption.conversationTypes = new ArrayList<>();
+        filterOption.conversationTypes.add(ZIMConversationType.GROUP); // Zego server filters to 1-vs-1 only
+        ArrayList<Integer> marksList = new ArrayList<>(Arrays.asList(2));
+        filterOption.marks = marksList;
+        ZegoSignalingPlugin.getInstance().queryConversationList(config, filterOption, (conversationList, errorInfo) -> {
+            if (errorInfo.code != ZIMErrorCode.SUCCESS) {
+                System.out.println("SaaS Sync Fault: " + errorInfo.message);
+                return;
+            }
+            if (conversationList == null) {
+                return;
+            }
+//            conversationList.get(0).
+            if (conversationList.isEmpty()) {
+                System.out.println("SaaS Sync: group conversation list empty");
+            }
+            System.out.println("seller convert list has items "+conversationList.size());
+            // 群名/群头像以覆盖表（服务端权威值）为准合并，覆盖表没有的再退回 queryGroupList
+            // （queryGroupList 是本地缓存，只在"从未改过头像"时够用）
+            zimInstance().queryGroupList((groups, groupError) -> {
+//                conversationList.get(0).
+                if (groupError != null && groupError.code != ZIMErrorCode.SUCCESS) {
+                    android.util.Log.w("SaaS Sync", "queryGroupList fail: " + groupError.message);
+                }
+                pushCustomerConversations(conversationList, groups,"seller");
             });
         });
     }
@@ -1941,6 +2193,7 @@ public class TestModule extends UniModule {
                 if (o == null) {
                     continue;
                 }
+
                 im.zego.zim.entity.ZIMConversation c = conversationList.get(i);
                 // 免打扰标记供列表显示铃铛划线
                 o.put("muted", c != null && c.notificationStatus
@@ -1965,6 +2218,166 @@ public class TestModule extends UniModule {
         }
     }
 
+    private static void pushCustomerConversations1(List<im.zego.zim.entity.ZIMConversation> conversationList,
+                                               ArrayList<im.zego.zim.entity.ZIMGroup> groups, String option) {
+        try {
+            // 用 Gson 批量序列化，再转 fastjson 数组（保持原有字段名给 uniapp）
+            com.alibaba.fastjson.JSONArray uniArray = com.alibaba.fastjson.JSON.parseArray(
+                    new com.google.gson.Gson().toJson(conversationList)
+            );
+            for (int i = 0; i < uniArray.size() && i < conversationList.size(); i++) {
+                JSONObject o = uniArray.getJSONObject(i);
+                if (o == null) {
+                    continue;
+                }
+                im.zego.zim.entity.ZIMConversation c = conversationList.get(i);
+                String conv =  o.getString("conversationID");
+                // 免打扰标记供列表显示铃铛划线
+                o.put("muted", c != null && c.notificationStatus
+                        == im.zego.zim.enums.ZIMConversationNotificationStatus.DO_NOT_DISTURB);
+                im.zego.zim.ZIM.getInstance().queryGroupAllAttributes(conv, new ZIMGroupAttributesQueriedCallback() {
+                    @Override
+                    public void onGroupAttributesQueried(String groupID, HashMap<String, String> groupAttributes, ZIMError errorInfo) {
+                        // 1. Check if the network request succeeded
+                        System.out.println("META REACHED HERE");
+                        if (errorInfo.code == ZIMErrorCode.SUCCESS) {
+                            if (groupAttributes != null && !groupAttributes.isEmpty()) {
+                                String buyerName = groupAttributes.get("buyer_name");
+                                String buyerProfile = groupAttributes.get("name");
+                                String sellerName = groupAttributes.get("seller_name");
+                                String sellerProfile = groupAttributes.get("seller_profile");
+                                Log.d("ZEGO_ATTR", "Success! MarkContent is: " + buyerName);
+                                o.put("buyerName", buyerName);
+                                o.put("buyerProfile", buyerProfile);
+                                o.put("sellerName", sellerName);
+                                o.put("sellerProfile", sellerProfile);
+                            } else {
+                                Log.d("ZEGO_ATTR", "The request succeeded, but this group has no attributes.");
+                            }
+
+                        } else {
+                            // 3. Handle errors (e.g., group doesn't exist, network timeout)
+                            Log.e("ZEGO_ATTR", "Failed to query attributes. Error Code: "
+                                    + errorInfo.code + " | Message: " + errorInfo.message);
+                        }
+                    }
+                });
+//                applyCustomerConversations(o, c == null ? null : c.conversationID, groups);
+            }
+            JSONObject payload = new JSONObject();
+            System.out.println(uniArray);
+            System.out.println("buyer list above");
+            payload.put("list", uniArray);
+
+            JSONObject eventPayload = new JSONObject();
+            eventPayload.put("event", option);
+            eventPayload.put("data", payload);
+
+            UniJSCallback cb = globalJsCallback;
+            if (cb == null) {
+                return;
+            }
+            cb.invokeAndKeepAlive(eventPayload);
+            System.out.println("SaaS Engine Sync Event broadcasted to uni-app workspace.");
+        } catch (Exception e) {
+            android.util.Log.w("SaaS Sync", "pushGroupConversations fail: " + e.getMessage());
+        }
+    }
+
+
+
+    private static void pushCustomerConversations(List conversationList,
+                                                  ArrayList groups, String option) {
+        try {
+            if (conversationList == null || conversationList.isEmpty()) {
+                sendToUniApp(new com.alibaba.fastjson.JSONArray(), option);
+                return;
+            }
+
+            // 用 Gson 批量序列化，再转 fastjson 数组（保持原有字段名给 uniapp）
+            com.alibaba.fastjson.JSONArray uniArray = com.alibaba.fastjson.JSON.parseArray(
+                    new com.google.gson.Gson().toJson(conversationList)
+            );
+
+            // 用 AtomicInteger 跟踪有多少个异步请求需要处理
+            java.util.concurrent.atomic.AtomicInteger remainingRequests = new java.util.concurrent.atomic.AtomicInteger(uniArray.size());
+
+            // Bypassing markdown rendering bugs by using (uniArray.size() > i) instead of (i < uniArray.size())
+            for (int i = 0; uniArray.size() > i; i++) {
+                final int index = i;
+                com.alibaba.fastjson.JSONObject o = uniArray.getJSONObject(index);
+
+                if (o == null) {
+                    if (remainingRequests.decrementAndGet() == 0) {
+                        sendToUniApp(uniArray, option);
+                    }
+                    continue;
+                }
+
+//                im.zego.zim.entity.ZIMConversation c = (conversationList.size() > index) ? conversationList.get(index) : null;
+                String conv = o.getString("conversationID");
+
+                // 免打扰标记供列表显示铃铛划线
+//                o.put("muted", c != null && c.notificationStatus
+//                        == im.zego.zim.enums.ZIMConversationNotificationStatus.DO_NOT_DISTURB);
+
+                // ==================== THE ZEGO NETWORK QUERY IS VISIBLE BELOW ====================
+                im.zego.zim.ZIM.getInstance().queryGroupAllAttributes(conv, new im.zego.zim.callback.ZIMGroupAttributesQueriedCallback() {
+                    @Override
+                    public void onGroupAttributesQueried(String groupID, java.util.HashMap<String, String> groupAttributes, im.zego.zim.entity.ZIMError errorInfo) {
+                        try {
+                            System.out.println("META REACHED HERE");
+                            if (errorInfo.code == im.zego.zim.enums.ZIMErrorCode.SUCCESS) {
+                                if (groupAttributes != null && !groupAttributes.isEmpty()) {
+                                    String buyerName = groupAttributes.get("buyer_name");
+                                    String buyerProfile = groupAttributes.get("name");
+                                    String sellerName = groupAttributes.get("seller_name");
+                                    String sellerProfile = groupAttributes.get("seller_profile");
+                                    android.util.Log.d("ZEGO_ATTR", "Success! MarkContent is: " + buyerName);
+
+                                    o.put("buyerName", buyerName);
+                                    o.put("buyerProfile", buyerProfile);
+                                    o.put("sellerName", sellerName);
+                                    o.put("sellerProfile", sellerProfile);
+                                } else {
+                                    android.util.Log.d("ZEGO_ATTR", "The request succeeded, but this group has no attributes.");
+                                }
+                            } else {
+                                android.util.Log.e("ZEGO_ATTR", "Failed to query attributes. Error Code: "
+                                        + errorInfo.code + " | Message: " + errorInfo.message);
+                            }
+                        } finally {
+                            // 无论是成功还是失败，递减计数器。当计数器归零时，代表所有网络请求均已安全返回。
+                            if (remainingRequests.decrementAndGet() == 0) {
+                                sendToUniApp(uniArray, option);
+                            }
+                        }
+                    }
+                });
+                // =================================================================================
+            }
+        } catch (Exception e) {
+            android.util.Log.w("SaaS Sync", "pushGroupConversations fail: " + e.getMessage());
+        }
+    }
+
+    private static void sendToUniApp(com.alibaba.fastjson.JSONArray uniArray, String option) {
+        com.alibaba.fastjson.JSONObject payload = new com.alibaba.fastjson.JSONObject();
+        System.out.println(uniArray);
+        System.out.println("buyer list above");
+        payload.put("list", uniArray);
+
+        com.alibaba.fastjson.JSONObject eventPayload = new com.alibaba.fastjson.JSONObject();
+        eventPayload.put("event", option);
+        eventPayload.put("data", payload);
+
+        UniJSCallback cb = globalJsCallback;
+        if (cb == null) {
+            return;
+        }
+        cb.invokeAndKeepAlive(eventPayload);
+        System.out.println("SaaS Engine Sync Event broadcasted to uni-app workspace.");
+    }
     /** 用群资料覆盖会话上的群名/群头像（群资料查不到时保留原值，不写空覆盖） */
     private static void applyGroupProfileToConversations(JSONObject convJson, String groupId,
         ArrayList<im.zego.zim.entity.ZIMGroup> groups) {
@@ -1977,6 +2390,7 @@ public class TestModule extends UniModule {
         if (overrideAvatar != null && !overrideAvatar.isEmpty()) {
             convJson.put("conversationAvatarUrl", overrideAvatar);
         }
+
         if (overrideName != null && !overrideName.isEmpty()) {
             convJson.put("conversationName", overrideName);
         }
@@ -2002,6 +2416,82 @@ public class TestModule extends UniModule {
                     convJson.put("conversationName", info.groupName);
                 }
             }
+
+
+            if (overrideAvatar == null || overrideAvatar.isEmpty()) {
+                if (info.groupAvatarUrl != null && !info.groupAvatarUrl.isEmpty()) {
+                    convJson.put("conversationAvatarUrl", info.groupAvatarUrl);
+                }
+            }
+            return;
+        }
+    }
+
+    private static void applyCustomerConversations(JSONObject convJson, String groupId,
+                                                         ArrayList<im.zego.zim.entity.ZIMGroup> groups) {
+        if (convJson == null || groupId == null) {
+            return;
+        }
+        // 1) 优先用服务端权威覆盖表（改过头像/群名的群走这条，这是唯一可靠的来源）
+        String overrideAvatar = groupAvatarOverride.get(groupId);
+        String overrideName = groupNameOverride.get(groupId);
+        if (overrideAvatar != null && !overrideAvatar.isEmpty()) {
+            convJson.put("conversationAvatarUrl", overrideAvatar);
+        }
+
+        if (overrideName != null && !overrideName.isEmpty()) {
+            convJson.put("conversationName", overrideName);
+        }
+        // 诊断：改过头像的群每次推送都打一行，方便确认覆盖是否真的落到 payload
+        // adb logcat -s GroupProfile:V
+        if ((overrideAvatar != null && !overrideAvatar.isEmpty())
+                || (overrideName != null && !overrideName.isEmpty())) {
+            android.util.Log.i("GroupProfile", "apply override gid=" + groupId
+                    + " avatarHit=" + (overrideAvatar != null && !overrideAvatar.isEmpty())
+                    + " nameHit=" + (overrideName != null && !overrideName.isEmpty()));
+        }
+        // 2) 覆盖表没有的，退回本地群列表（queryGroupList 是本地缓存）
+        if (groups == null) {
+            return;
+        }
+        for (im.zego.zim.entity.ZIMGroup g : groups) {
+            im.zego.zim.entity.ZIMGroupInfo info = g == null ? null : g.baseInfo;
+            if (info == null || !groupId.equals(info.groupID)) {
+                continue;
+            }
+            if (overrideName == null || overrideName.isEmpty()) {
+                if (info.groupName != null && !info.groupName.isEmpty()) {
+                    convJson.put("conversationName", info.groupName);
+                }
+            }
+
+            im.zego.zim.ZIM.getInstance().queryGroupAllAttributes(groupId, new ZIMGroupAttributesQueriedCallback() {
+                @Override
+                public void onGroupAttributesQueried(String groupID, HashMap<String, String> groupAttributes, ZIMError errorInfo) {
+                    // 1. Check if the network request succeeded
+                    if (errorInfo.code == ZIMErrorCode.SUCCESS) {
+                        if (groupAttributes != null && !groupAttributes.isEmpty()) {
+                            String buyerName = groupAttributes.get("buyer_name");
+                            String buyerProfile = groupAttributes.get("name");
+                            String sellerName = groupAttributes.get("seller_name");
+                            String sellerProfile = groupAttributes.get("seller_profile");
+                            Log.d("ZEGO_ATTR", "Success! MarkContent is: " + buyerName);
+                            convJson.put("buyerName", buyerName);
+                            convJson.put("buyerProfile", buyerProfile);
+                            convJson.put("sellerName", sellerName);
+                            convJson.put("sellerProfile", sellerProfile);
+                        } else {
+                            Log.d("ZEGO_ATTR", "The request succeeded, but this group has no attributes.");
+                        }
+
+                    } else {
+                        // 3. Handle errors (e.g., group doesn't exist, network timeout)
+                        Log.e("ZEGO_ATTR", "Failed to query attributes. Error Code: "
+                                + errorInfo.code + " | Message: " + errorInfo.message);
+                    }
+                }
+            });
+
             if (overrideAvatar == null || overrideAvatar.isEmpty()) {
                 if (info.groupAvatarUrl != null && !info.groupAvatarUrl.isEmpty()) {
                     convJson.put("conversationAvatarUrl", info.groupAvatarUrl);
@@ -3471,6 +3961,7 @@ public class TestModule extends UniModule {
     public static void sendFriendApplicationFromNative(String memberId, JSONObject ignored,
         UniJSCallback callback) {
         try {
+//            im.zego.zim.ZIM.getInstance().setC
             im.zego.zim.entity.ZIMFriendApplicationSendConfig config =
                 new im.zego.zim.entity.ZIMFriendApplicationSendConfig();
             config.wording = "";
@@ -4527,6 +5018,8 @@ public class TestModule extends UniModule {
                     System.out.println("final data here oo");
                     loadPeerConversations();
                     loadGroupConversations();
+                    loadBuyerConversations();
+                    loadSellerConversations();
 
 
 //

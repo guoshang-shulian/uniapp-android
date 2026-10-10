@@ -115,7 +115,7 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
     public void sendShareCard(String conversationId,
                               String payloadJson) {
         try {
-            ZIMConversationType type =ZIMConversationType.PEER;
+            ZIMConversationType type =ZIMConversationType.GROUP;
             ZIMKit.sendCustomMessage(payloadJson, 1,
                     conversationId, type, new MessageSentCallback() {
                         @Override
@@ -130,6 +130,7 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
         }
     }
     Bundle productX;
+    Bundle NameX;
 
     @Override
     protected void initView() {
@@ -146,6 +147,8 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
         }
 
         Bundle productB = getIntent().getBundleExtra("product");
+        Bundle NameB = getIntent().getBundleExtra("name");
+        //String name = NameB.getString("name");
         productX = productB;
        // bool merchant = false;
         if(productB != null) {
@@ -223,28 +226,36 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
                 }
 
         );
+
+        if(NameB != null){
+            String name = NameB.getString("name");
+            mBinding.titleBar.setTitle(name);
+            NameX = NameB;
+        }
 //        mBinding.layoutGroupNotice.setVisibility(View.INVISIBLE);
 
 
         String avatar = bundle.getString(ZIMKitConstant.MessagePageConstant.KEY_AVATAR);
         isFromPush = bundle.getBoolean(ZIMKitConstant.MessagePageConstant.KEY_PUSH, false);
-        if(productB == null) {
-            mBinding.titleBar.setRightImg(R.mipmap.zimkit_icon_more);
-        } else{
-//            mBinding.titleBar.removeR
+        if(productB != null || NameB != null) {
             mBinding.titleBar.hideRightButton();
+
+        } else{
+            mBinding.titleBar.setRightImg(R.mipmap.zimkit_icon_more);
         }
 
         if (type.equals(ZIMKitConstant.MessagePageConstant.TYPE_GROUP_MESSAGE)) {
-            mBinding.titleBar.setTitle(!TextUtils.isEmpty(title) ? title : getString(R.string.zimkit_title_group_chat));
-            mBinding.titleBar.setRightCLickListener(v -> {
-                Bundle data = new Bundle();
-                data.putString(ZIMKitConstant.MessagePageConstant.KEY_ID, id);
-                data.putString(ZIMKitConstant.MessagePageConstant.KEY_TITLE, title);
-                Intent intent = new Intent(this, ZIMKitGroupChatSettingActivity.class);
-                intent.putExtra(ZIMKitConstant.RouterConstant.KEY_BUNDLE, data);
-                startActivity(intent, data);
-            });
+            if(NameB == null ) {
+                mBinding.titleBar.setTitle(!TextUtils.isEmpty(title) ? title : getString(R.string.zimkit_title_group_chat));
+                mBinding.titleBar.setRightCLickListener(v -> {
+                    Bundle data = new Bundle();
+                    data.putString(ZIMKitConstant.MessagePageConstant.KEY_ID, id);
+                    data.putString(ZIMKitConstant.MessagePageConstant.KEY_TITLE, title);
+                    Intent intent = new Intent(this, ZIMKitGroupChatSettingActivity.class);
+                    intent.putExtra(ZIMKitConstant.RouterConstant.KEY_BUNDLE, data);
+                    startActivity(intent, data);
+                });
+            }
         } else if (type.equals(ZIMKitConstant.MessagePageConstant.TYPE_SINGLE_MESSAGE)) {
             if(productB == null) {
                 mBinding.titleBar.setTitle(!TextUtils.isEmpty(title) ? title : getString(R.string.zimkit_title_chat));
@@ -848,7 +859,7 @@ public class ZIMKitMessageActivity extends BaseActivity<ZimkitActivityMessageBin
                 @Override
                 public void setSetTitle(String title) {
                     if (mBinding != null) {
-                        if(productX == null) {
+                        if(productX == null && NameX == null) {
                             mBinding.titleBar.setTitle(title);
                         }
                     }
