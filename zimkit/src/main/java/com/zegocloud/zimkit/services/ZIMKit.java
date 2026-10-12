@@ -114,6 +114,8 @@ public class ZIMKit {
     public static void createGroup(String groupName, String groupId, List<String> inviteUserIDs,
         CreateGroupCallback callback) {
         zimKitCore.createGroup(groupName, groupId, inviteUserIDs, callback);
+
+
     }
 
     public static void joinGroup(String groupID, JoinGroupCallback callback) {
