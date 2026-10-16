@@ -31,61 +31,75 @@
       app:layout_constraintVertical_bias="0.0"
       tools:layout_editor_absoluteX="0dp">
 
-      <androidx.constraintlayout.widget.ConstraintLayout
+      <!-- 对方 + 邀请占位：与群聊「群聊成员」行**完全同一套排布**
+           （icon 34dp + 下方 12sp 名字；占位 = zimkit_icon_member_add + 下方「邀请」）——
+           私聊只需要「邀请」占位，**不要「踢出」**。
+           宿主（uniplugin）未注册动作桥时，整个「邀请」占位会被代码隐藏，避免"点了没反应" -->
+      <LinearLayout
         android:id="@+id/contact_info"
         android:layout_width="match_parent"
-        android:layout_height="80dp"
+        android:layout_height="wrap_content"
         android:layout_marginTop="20dp"
         android:background="@drawable/zimkit_shape_8dp_white"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingTop="12dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="12dp"
         app:layout_constraintTop_toTopOf="parent">
 
-        <ImageView
-          android:id="@+id/contact_icon"
-          android:layout_width="48dp"
-          android:layout_height="48dp"
-          android:layout_marginStart="16dp"
-          app:layout_constraintBottom_toBottomOf="parent"
-          app:layout_constraintStart_toStartOf="parent"
-          app:layout_constraintTop_toTopOf="parent" />
-
-        <TextView
-          android:id="@+id/contact_name"
+        <LinearLayout
           android:layout_width="wrap_content"
           android:layout_height="wrap_content"
-          android:layout_marginStart="12dp"
-          android:layout_marginEnd="8dp"
-          android:ellipsize="end"
-          android:maxLines="1"
-          android:textColor="@color/color_2a2a2a"
-          android:textSize="17sp"
-          app:layout_constrainedWidth="true"
-          app:layout_constraintBottom_toBottomOf="@+id/contact_icon"
-          app:layout_constraintEnd_toStartOf="@+id/contact_add"
-          app:layout_constraintHorizontal_bias="0"
-          app:layout_constraintHorizontal_chainStyle="packed"
-          app:layout_constraintStart_toEndOf="@+id/contact_icon"
-          app:layout_constraintTop_toTopOf="@+id/contact_icon" />
+          android:gravity="center_horizontal"
+          android:orientation="vertical">
 
-        <!-- 「＋」发起群聊：**复用群聊成员区那个＋占位符**（zimkit_icon_member_add，34dp），
-             与"临时群聊/社群频道"的成员区视觉一致。
-             位置：与名字组成 packed 链 → **紧跟在名字后面**（不再顶到卡片最右边隔一大截）；
-             名字过长时名字自己省略号收窄，＋ 不会被挤出卡片。
-             宿主（uniplugin）未注册动作桥时会被代码隐藏，避免"点了没反应" -->
-        <ImageView
+          <ImageView
+            android:id="@+id/contact_icon"
+            android:layout_width="34dp"
+            android:layout_height="34dp" />
+
+          <TextView
+            android:id="@+id/contact_name"
+            android:layout_width="52dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="7dp"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:maxLines="1"
+            android:textColor="@color/color_646A73"
+            android:textSize="12sp" />
+        </LinearLayout>
+
+        <LinearLayout
           android:id="@+id/contact_add"
-          android:layout_width="40dp"
-          android:layout_height="40dp"
-          android:layout_marginEnd="8dp"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layout_marginStart="20dp"
           android:background="?attr/selectableItemBackgroundBorderless"
-          android:contentDescription="@string/zimkit_start_group_chat"
-          android:padding="3dp"
-          android:scaleType="fitCenter"
-          android:src="@drawable/zimkit_icon_member_add"
-          app:layout_constraintBottom_toBottomOf="parent"
-          app:layout_constraintEnd_toEndOf="parent"
-          app:layout_constraintStart_toEndOf="@+id/contact_name"
-          app:layout_constraintTop_toTopOf="parent" />
-      </androidx.constraintlayout.widget.ConstraintLayout>
+          android:clickable="true"
+          android:focusable="true"
+          android:gravity="center_horizontal"
+          android:orientation="vertical">
+
+          <ImageView
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:contentDescription="@string/invite"
+            android:src="@drawable/zimkit_icon_member_add" />
+
+          <TextView
+            android:layout_width="52dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="7dp"
+            android:gravity="center"
+            android:maxLines="1"
+            android:text="@string/invite"
+            android:textColor="@color/color_646A73"
+            android:textSize="12sp" />
+        </LinearLayout>
+      </LinearLayout>
 
       <LinearLayout
         android:id="@+id/chat_setting"
