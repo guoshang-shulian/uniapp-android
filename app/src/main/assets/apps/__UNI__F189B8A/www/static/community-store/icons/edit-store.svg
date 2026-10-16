@@ -1,0 +1,23 @@
+<!-- 社群店铺管理 · 门店管理「编辑店铺」
+     统一图标规范：viewBox 32×32 / 描边 2 / 圆头圆角 / fill=none / 颜色 = 模块主色 #9079F9
+     内容安全区 4~28；页面显示 56×56rpx（mode=aspectFit，容器 104×104rpx 白底 r16 #EFEFEF 描边）
+
+     构图（css 布局思路：本子是居中基准元素，笔相对它定位）：
+       · 本子 = 居中块：16×20，x 8~24 / y 6~26 → **中心正好是画布中心 (16,16)**（含 2 描边 7~25 / 5~27）
+       · 笔 = 相对本子定位（等价 absolute）：translate 到笔尖锚点 (14.5,16.5)（本子内偏下），
+         rotate(-45) 指向上右，局部 +x 方向长 13.4（≈本子高的 2/3）：
+         笔尖收成一点(0,0) → 笔尖分界 x=4.2（宽 4.2）→ 笔尾 x=13.4（宽 6），
+         换算后笔尾两角 ≈ (21.85,4.9) / (26.1,8.15) → **明确压出本子右上角**（出角约 1/4 长度）
+       · 本子左下两行文字（y 19.5 / 23）留在笔尖下方，不打架 -->
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 本子（居中基准元素，中心 = 16,16） -->
+  <rect x="8" y="6" width="16" height="20" rx="3" stroke="#9079F9" stroke-width="2"/>
+  <path d="M12 19.5h7M12 23h4" stroke="#9079F9" stroke-width="2" stroke-linecap="round"/>
+  <!-- 笔（相对本子定位：局部坐标系里笔尖在原点、沿 +x 生长） -->
+  <g transform="translate(14.5 16.5) rotate(-45)">
+    <path d="M0 0 4.2 -2.1 13.4 -3 13.4 3 4.2 2.1Z" stroke="#9079F9" stroke-width="2" stroke-linecap="round"
+      stroke-linejoin="round"/>
+    <!-- 笔尖与笔身的分界线（让 56rpx 下也能读出"笔"） -->
+    <path d="M4.2 -2.1 4.2 2.1" stroke="#9079F9" stroke-width="2" stroke-linecap="round"/>
+  </g>
+</svg>
