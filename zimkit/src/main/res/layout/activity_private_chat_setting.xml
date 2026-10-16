@@ -53,11 +53,38 @@
           android:layout_width="wrap_content"
           android:layout_height="wrap_content"
           android:layout_marginStart="12dp"
+          android:layout_marginEnd="8dp"
+          android:ellipsize="end"
+          android:maxLines="1"
           android:textColor="@color/color_2a2a2a"
           android:textSize="17sp"
+          app:layout_constrainedWidth="true"
           app:layout_constraintBottom_toBottomOf="@+id/contact_icon"
+          app:layout_constraintEnd_toStartOf="@+id/contact_add"
+          app:layout_constraintHorizontal_bias="0"
+          app:layout_constraintHorizontal_chainStyle="packed"
           app:layout_constraintStart_toEndOf="@+id/contact_icon"
           app:layout_constraintTop_toTopOf="@+id/contact_icon" />
+
+        <!-- 「＋」发起群聊：**复用群聊成员区那个＋占位符**（zimkit_icon_member_add，34dp），
+             与"临时群聊/社群频道"的成员区视觉一致。
+             位置：与名字组成 packed 链 → **紧跟在名字后面**（不再顶到卡片最右边隔一大截）；
+             名字过长时名字自己省略号收窄，＋ 不会被挤出卡片。
+             宿主（uniplugin）未注册动作桥时会被代码隐藏，避免"点了没反应" -->
+        <ImageView
+          android:id="@+id/contact_add"
+          android:layout_width="40dp"
+          android:layout_height="40dp"
+          android:layout_marginEnd="8dp"
+          android:background="?attr/selectableItemBackgroundBorderless"
+          android:contentDescription="@string/zimkit_start_group_chat"
+          android:padding="3dp"
+          android:scaleType="fitCenter"
+          android:src="@drawable/zimkit_icon_member_add"
+          app:layout_constraintBottom_toBottomOf="parent"
+          app:layout_constraintEnd_toEndOf="parent"
+          app:layout_constraintStart_toEndOf="@+id/contact_name"
+          app:layout_constraintTop_toTopOf="parent" />
       </androidx.constraintlayout.widget.ConstraintLayout>
 
       <LinearLayout

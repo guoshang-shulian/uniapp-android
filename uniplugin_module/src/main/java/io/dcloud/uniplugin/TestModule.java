@@ -168,7 +168,7 @@ public class TestModule extends UniModule {
 
     /**
      * 最近一次进入的群会话 ID（聊天页上下文）。
-     * 改成 static：原生静态桥（如 openMemberChat / MemberInfoActivity 的「发消息」）也要重置它，
+     * 改成 static：原生静态桥（如成员资料页的「发消息」）也要重置它，
      * 原来是非静态字段，静态方法里碰不到。
      */
     static String groupId = "";
@@ -522,75 +522,209 @@ public class TestModule extends UniModule {
         }
     }
 
-    /** 与好友“群聊”：严格 2 人复用——存在【仅我+对方】的 2 人群则进入；否则新建“群聊”（bizType=temp） */
+    /**
+     * 用户间**真私聊（ZIM PEER 单聊）**：普通用户之间唯一的一对一入口。
+     *
+     * <p>与客服链路（openCustomerChat / startChatChecked / kefuModule）**完全无关、互不影响**：
+     * <ul>
+     *   <li>会话天然唯一：conversationID = 对方 userID，不存在“2 人复用”这件事；</li>
+     *   <li>不需要加好友（好友 = 电话簿，是另一套功能）；</li>
+     *   <li>**C 方案预检**：目标 ZIM 账号**明确不存在**时不打开“无人会话”，返回可读原因
+     *       （“对方还未开通聊天账号，请稍后再试”）——不静默失败、不编造成功。</li>
+     * </ul>
+     *
+     * @param peerIdOrZimId 对方 ZIM userId（user_xxx）或裸 memberId
+     */
     @UniJSMethod(uiThread = true)
-    public void startPrivateGroupChat(String peerZimId, String peerName, UniJSCallback callback) {
-        try {
-            final String peer = peerZimId == null ? "" : peerZimId;
-            android.util.Log.d("PrivateGroup", "start peer=" + peer + " name=" + peerName);
-            if (peer.isEmpty()) {
-                invokeFail(callback, new Exception("peerZimId empty"));
-                return;
-            }
-            final String self = ZIMKitCore.getInstance().getLocalUser().getId();
-            if (self == null || self.isEmpty()) {
-                invokeFail(callback, new Exception("self id empty"));
-                return;
-            }
-            // 群名统一「聊天」：ZIM 群名是双方共享的，写成任一方昵称都会让对方看到错的名字
-            final String displayName = PRIVATE_CHAT_NAME;
-            zimInstance().queryGroupList((groups, error) -> {
-                if (error != null && error.code != ZIMErrorCode.SUCCESS) {
-                    android.util.Log.d("PrivateGroup", "queryGroupList err=" + error.message);
-                }
-                final List<String> gids = new ArrayList<>();
-                if (groups != null) {
-                    for (im.zego.zim.entity.ZIMGroup g : groups) {
-                        if (g != null && g.baseInfo != null && g.baseInfo.groupID != null) {
-                            gids.add(g.baseInfo.groupID);
-                        }
-                    }
-                }
-                findTwoPersonGroupAndOpen(gids, 0, peer, self, displayName, callback);
-            });
-        } catch (Exception e) {
-            invokeFail(callback, e);
-        }
+    public void startUserChat(String peerIdOrZimId, UniJSCallback callback) {
+        startUserChatStatic(peerIdOrZimId, callback);
     }
 
-    /**
-     * 「2 人复用创建群聊」的静态入口（供原生页调用，如成员资料页的「发消息」）。
-     *
-     * <p>与 uniapp 桥 {@link #startPrivateGroupChat} **共用同一套逻辑**（
-     * {@link #findTwoPersonGroupAndOpen}）：优先复用【仅我+对方】的 2 人群，
-     * 没有就新建（群名「聊天」、bizType=temp）。**不要求双方是好友**。
-     */
-    public static void startTwoPersonChatStatic(String peerZimId, UniJSCallback callback) {
+    /** {@link #startUserChat} 的静态入口：原生页（成员资料页「发消息」等）直接调用 */
+    public static void startUserChatStatic(final String peerIdOrZimId, final UniJSCallback callback) {
         try {
-            final String peer = peerZimId == null ? "" : peerZimId;
+            final String peer = normalizeUserZimId(peerIdOrZimId);
             if (peer.isEmpty()) {
-                invokeFailStatic(callback, new Exception("peerZimId empty"));
+                invokeFailStatic(callback, new Exception("缺少对方会员ID"));
                 return;
             }
-            final String self = ZIMKitCore.getInstance().getLocalUser().getId();
-            if (self == null || self.isEmpty()) {
-                invokeFailStatic(callback, new Exception("self id empty"));
-                return;
-            }
-            zimInstance().queryGroupList((groups, error) -> {
-                final List<String> gids = new ArrayList<>();
-                if (groups != null) {
-                    for (im.zego.zim.entity.ZIMGroup g : groups) {
-                        if (g != null && g.baseInfo != null && g.baseInfo.groupID != null) {
-                            gids.add(g.baseInfo.groupID);
-                        }
+            android.util.Log.i("UserChat", "startUserChat peer=" + peer);
+            checkPeerAccount(peer, (ok, code, message) -> {
+                if (!ok) {
+                    JSONObject result = new JSONObject();
+                    result.put("success", false);
+                    result.put("code", code);
+                    result.put("message", message);
+                    if (callback != null) {
+                        callback.invoke(result);
                     }
+                    return;
                 }
-                findTwoPersonGroupAndOpenStatic(gids, 0, peer, self, PRIVATE_CHAT_NAME, callback);
+                openUserPeerChat(peer);
+                JSONObject result = new JSONObject();
+                result.put("success", true);
+                result.put("conversationId", peer);
+                result.put("conversationType", "peer");
+                if (callback != null) {
+                    callback.invoke(result);
+                }
             });
         } catch (Exception e) {
             invokeFailStatic(callback, e);
         }
+    }
+
+    /**
+     * 兼容壳：旧基座/旧前端仍会调 {@code startPrivateGroupChat} → 一律按**真私聊（PEER）**处理，
+     * 不再创建/复用任何 2 人群。
+     */
+    @UniJSMethod(uiThread = true)
+    public void startPrivateGroupChat(String peerZimId, String peerName, UniJSCallback callback) {
+        // peerName 仅为兼容旧调用签名保留：PEER 会话名/头像由对方 ZIM 用户资料决定
+        startUserChatStatic(peerZimId, callback);
+    }
+
+    /** 目标账号预检结果回调（C 方案） */
+    private interface PeerAccountCheck {
+        void onResult(boolean ok, int code, String message);
+    }
+
+    /**
+     * **C 方案：打开私聊/发送卡片前，预检目标 ZIM 账号是否存在。**
+     *
+     * <p>只有**明确不存在**（errorUserList 命中，或 errorInfo = USER_NOT_EXIST）才拦截并给出可读文案；
+     * **查不出来**（网络异常、未登录 6000121、限频…）一律放行 —— “查不出来 ≠ 不存在”，
+     * 否则会把与业务无关的原因当成结论（悬浮球那次已踩过）。放行后若真的发不出去，
+     * 由发送回调把 ZIM 的真实错误码/文案抛给用户。
+     */
+    private static void checkPeerAccount(final String peerZimId, final PeerAccountCheck cb) {
+        try {
+            ArrayList<String> ids = new ArrayList<>();
+            ids.add(peerZimId);
+            ZIMUsersInfoQueryConfig cfg = new ZIMUsersInfoQueryConfig();
+            cfg.isQueryFromServer = true;
+            zimInstance().queryUsersInfo(ids, cfg, new ZIMUsersInfoQueriedCallback() {
+                @Override
+                public void onUsersInfoQueried(ArrayList<ZIMUserFullInfo> userList,
+                    ArrayList<ZIMErrorUserInfo> errorUserList, ZIMError errorInfo) {
+                    boolean exists = false;
+                    if (userList != null) {
+                        for (ZIMUserFullInfo u : userList) {
+                            if (u != null && u.baseInfo != null && peerZimId.equals(u.baseInfo.userID)) {
+                                exists = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (exists) {
+                        android.util.Log.i("UserChat", "peer exists: " + peerZimId);
+                        cb.onResult(true, 0, "");
+                        return;
+                    }
+                    boolean explicitMissing = errorInfo != null
+                        && errorInfo.code == ZIMErrorCode.USER_NOT_EXIST;
+                    if (!explicitMissing && errorUserList != null) {
+                        for (ZIMErrorUserInfo e : errorUserList) {
+                            if (e != null && peerZimId.equals(e.userID)) {
+                                explicitMissing = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (explicitMissing) {
+                        android.util.Log.i("UserChat", "peer NOT registered in ZIM: " + peerZimId
+                            + " → block（不再打开空会话）");
+                        cb.onResult(false, 6000011, "对方还未开通聊天账号，请稍后再试");
+                        return;
+                    }
+                    android.util.Log.w("UserChat", "peer check unknown peer=" + peerZimId
+                        + " code=" + (errorInfo == null ? "" : errorInfo.code)
+                        + " msg=" + (errorInfo == null ? "" : errorInfo.message) + " → 放行");
+                    cb.onResult(true, 0, "");
+                }
+            });
+        } catch (Exception e) {
+            android.util.Log.w("UserChat", "peer check exception: " + e.getMessage() + " → 放行");
+            cb.onResult(true, 0, "");
+        }
+    }
+
+    /** 打开单聊（PEER）：本模块自己的实现（见 {@link #openNativeChat}） */
+    private static void openUserPeerChat(final String peerZimId) {
+        openNativeChat(peerZimId, false);
+    }
+
+    /**
+     * 打开聊天页（单聊/群聊）—— **本模块自己的实现**（不复用客服链路）：
+     * 主线程 + 上下文兜底（当前 Activity → 缓存上下文）+ 失败可见；
+     * 同时挂上卡片点击回调（红包/邀请/商品/店铺/文章卡片都要用）。
+     */
+    private static void openNativeChat(final String conversationId, final boolean group) {
+        openNativeChat(conversationId, group, null);
+    }
+
+    /**
+     * @param afterOpen 聊天页启动后再执行（如"从单聊设置页发起群聊"成功后关掉设置页，
+     *                  这样从新群返回时回到单聊，而不是回到设置页）
+     */
+    private static void openNativeChat(final String conversationId, final boolean group,
+        final Runnable afterOpen) {
+        if (conversationId == null || conversationId.isEmpty()) {
+            return;
+        }
+        try {
+            ZIMKitMessageFragment.setOnNativeDataListener(new BackToUniappCallback() {
+                @Override
+                public void onDataReceived(String data) {
+                }
+
+                @Override
+                public void onStartCall(String data) {
+                }
+
+                @Override
+                public void onCardAction(String action, String data) {
+                    dispatchCardEvent(action, data);
+                }
+            });
+        } catch (Exception ignored) {
+        }
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+            try {
+                Context ctx = dialogContext();
+                if (ctx == null) {
+                    android.util.Log.w("NativeChat", "open skipped: no context");
+                    return;
+                }
+                ZIMKitRouter.toMessageActivity(ctx, conversationId,
+                    group ? ZIMKitConversationType.ZIMKitConversationTypeGroup
+                        : ZIMKitConversationType.ZIMKitConversationTypePeer);
+            } catch (Exception e) {
+                android.util.Log.w("NativeChat", "open fail: " + e.getMessage());
+            } finally {
+                if (afterOpen != null) {
+                    try {
+                        afterOpen.run();
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * 归一化成 ZIM userId：客服 merchant_/customer_ 原样保留（走它们自己的链路），
+     * 其余统一补 {@code user_} 前缀。
+     */
+    private static String normalizeUserZimId(String idOrZimId) {
+        String s = idOrZimId == null ? "" : idOrZimId.trim();
+        if (s.isEmpty()) {
+            return "";
+        }
+        if (s.startsWith("merchant_") || s.startsWith("customer_")) {
+            return s;
+        }
+        return s.startsWith("user_") ? s : ("user_" + s);
     }
 
     private static void invokeFailStatic(UniJSCallback callback, Exception e) {
@@ -601,76 +735,6 @@ public class TestModule extends UniModule {
         result.put("success", false);
         result.put("message", e == null ? "" : e.getMessage());
         callback.invoke(result);
-    }
-
-    /** {@link #findTwoPersonGroupAndOpen} 的静态版（逻辑一致，供原生页复用） */
-    private static void findTwoPersonGroupAndOpenStatic(final List<String> gids, final int index,
-        final String peer, final String self, final String displayName, final UniJSCallback callback) {
-        if (index >= gids.size()) {
-            String newGid = createTempGroupId();
-            android.util.Log.d("PrivateGroup", "create new two-person group gid=" + newGid
-                + " name=" + displayName);
-            ZIMKit.createGroup(displayName, newGid, new ArrayList<String>() {{ add(peer); }},
-                new CreateGroupCallback() {
-                    @Override
-                    public void onCreateGroup(ZIMKitGroupInfo groupInfo, ArrayList<ZIMErrorUserInfo> inviteUserErrors,
-                        ZIMError error) {
-                        if (error != null && error.code == ZIMErrorCode.SUCCESS) {
-                            markGroupBizTypeStatic(newGid, "temp");
-                            // 后端登记：SDK 建的群后端不知道，不登记则二维码/扫码/详情都不可用
-                            registerTempGroupToBackend(newGid,
-                                java.util.Collections.singletonList(peer));
-                            openGroupChatAndReplyStatic(newGid, callback);
-                        } else {
-                            invokeFailStatic(callback, new Exception(error == null ? "创建失败" : error.message));
-                        }
-                    }
-                });
-            return;
-        }
-        final String gid = gids.get(index);
-        ZIMGroupMemberQueryConfig config = new ZIMGroupMemberQueryConfig();
-        config.count = 100;
-        config.nextFlag = 0;
-        zimInstance().queryGroupMemberList(gid, config, new ZIMGroupMemberListQueriedCallback() {
-            @Override
-            public void onGroupMemberListQueried(String groupId, ArrayList<ZIMGroupMemberInfo> memberList,
-                int flag, ZIMError errorInfo) {
-                if (errorInfo != null && errorInfo.code == ZIMErrorCode.SUCCESS && memberList != null
-                    && memberList.size() == 2 && containsUserStatic(memberList, self)
-                    && containsUserStatic(memberList, peer)) {
-                    zimInstance().queryGroupAllAttributes(gid, (g, attrs, e) -> {
-                        boolean isCommunity = attrs != null && "community".equals(attrs.get("bizType"));
-                        if (isCommunity) {
-                            findTwoPersonGroupAndOpenStatic(gids, index + 1, peer, self, displayName, callback);
-                        } else {
-                            android.util.Log.d("PrivateGroup", "reuse two-person group gid=" + gid);
-                            markGroupBizTypeStatic(gid, "temp");
-                            openGroupChatAndReplyStatic(gid, callback);
-                        }
-                    });
-                } else {
-                    findTwoPersonGroupAndOpenStatic(gids, index + 1, peer, self, displayName, callback);
-                }
-            }
-        });
-    }
-
-    private static boolean containsUserStatic(List<ZIMGroupMemberInfo> list, String userId) {
-        if (list == null || userId == null) {
-            return false;
-        }
-        for (ZIMGroupMemberInfo m : list) {
-            if (m != null && userId.equals(m.userID)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** 生成临时群 ID 复用实例版 {@link #nextTempGroupId()}（规则一致，避免两套 ID 生成器） */
-    private static String createTempGroupId() {
-        return nextTempGroupId();
     }
 
     /** 标记群业务类型（静态版，与实例版 markGroupBizType 行为一致） */
@@ -691,208 +755,6 @@ public class TestModule extends UniModule {
                 });
         } catch (Exception e) {
             android.util.Log.w("GroupBizType", "mark fail: " + e.getMessage());
-        }
-    }
-
-    /** 进群聊页并回执（静态版，与 openGroupChatAndReply 行为一致） */
-    private static void openGroupChatAndReplyStatic(String gid, UniJSCallback callback) {
-        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
-            try {
-                TestModule.groupId = gid;
-                // 优先当前 Activity（原生资料页），兜底缓存的上下文 —— 与 openMemberInfoInternal 同口径
-                Context ctx = null;
-                try {
-                    ctx = com.zegocloud.zimkit.common.utils.ZIMKitActivityUtils.getCurrentActivity();
-                } catch (Exception ignored) {
-                }
-                if (ctx == null) {
-                    ctx = sAppContext;
-                }
-                if (ctx != null) {
-                    ZIMKitRouter.toMessageActivity(ctx, gid,
-                        com.zegocloud.zimkit.common.enums.ZIMKitConversationType.ZIMKitConversationTypeGroup);
-                } else {
-                    android.util.Log.w("PrivateGroup", "open chat skipped: no context");
-                }
-            } catch (Exception e) {
-                android.util.Log.w("PrivateGroup", "open chat fail: " + e.getMessage());
-            }
-        });
-        if (callback != null) {
-            JSONObject result = new JSONObject();
-            result.put("success", true);
-            result.put("groupId", gid);
-            callback.invoke(result);
-        }
-    }
-
-    private void findTwoPersonGroupAndOpen(final List<String> gids, final int index,
-        final String peer, final String self, final String displayName, final UniJSCallback callback) {
-        if (index >= gids.size()) {
-            // 没有“仅我+对方”的群 → 新建 2 人聊天群（群名统一「聊天」）
-            // 群 ID 必须全局唯一：多选分享时会连续建群，同毫秒下随机数有概率撞 ID
-            // （撞了第二次 createGroup 报“群已存在”，卡片就发不出去）
-            String newGid = nextTempGroupId();
-            android.util.Log.d("PrivateGroup", "create new two-person group gid=" + newGid
-                + " name=" + displayName);
-            ZIMKit.createGroup(displayName, newGid, new ArrayList<String>() {{ add(peer); }},
-                new CreateGroupCallback() {
-                    @Override
-                    public void onCreateGroup(ZIMKitGroupInfo groupInfo, ArrayList<ZIMErrorUserInfo> inviteUserErrors,
-                        ZIMError error) {
-                        if (error != null && error.code == ZIMErrorCode.SUCCESS) {
-                            android.util.Log.d("PrivateGroup", "createGroup ok gid=" + newGid);
-                            markGroupBizType(newGid, "temp");
-                            // 后端登记（2 人群聊也是临时群，必须登记才能扫码/详情/画码）
-                            registerTempGroupToBackend(newGid,
-                                java.util.Collections.singletonList(peer));
-                            openGroupChatAndReply(newGid, callback);
-                        } else {
-                            android.util.Log.d("PrivateGroup", "create fail code="
-                                + (error == null ? "" : error.code) + " msg=" + (error == null ? "" : error.message));
-                            JSONObject result = new JSONObject();
-                            result.put("success", false);
-                            result.put("message", error == null ? "创建失败" : error.message);
-                            if (callback != null) {
-                                callback.invoke(result);
-                            }
-                        }
-                    }
-                });
-            return;
-        }
-        final String gid = gids.get(index);
-        ZIMGroupMemberQueryConfig config = new ZIMGroupMemberQueryConfig();
-        config.count = 100;
-        config.nextFlag = 0;
-        zimInstance().queryGroupMemberList(gid, config, new ZIMGroupMemberListQueriedCallback() {
-            @Override
-            public void onGroupMemberListQueried(String groupId, ArrayList<ZIMGroupMemberInfo> memberList,
-                int flag, ZIMError errorInfo) {
-                if (errorInfo != null && errorInfo.code == ZIMErrorCode.SUCCESS && memberList != null
-                    && memberList.size() == 2 && containsUser(memberList, self) && containsUser(memberList, peer)) {
-                    // 2人群候选：确认不是社群频道后进入（旧名“群聊”→补成对方名，保留自定义改名）
-                    zimInstance().queryGroupAllAttributes(gid, (g, attrs, e) -> {
-                        boolean isCommunity = attrs != null && "community".equals(attrs.get("bizType"));
-                        if (isCommunity) {
-                            findTwoPersonGroupAndOpen(gids, index + 1, peer, self, displayName, callback);
-                        } else {
-                            android.util.Log.d("PrivateGroup", "reuse two-person group gid=" + gid);
-                            markGroupBizType(gid, "temp");
-                            openGroupChatAndReply(gid, callback);
-                        }
-                    });
-                } else {
-                    findTwoPersonGroupAndOpen(gids, index + 1, peer, self, displayName, callback);
-                }
-            }
-        });
-    }
-
-    private boolean containsUser(ArrayList<ZIMGroupMemberInfo> list, String userId) {
-        if (list == null || userId == null) {
-            return false;
-        }
-        for (ZIMGroupMemberInfo info : list) {
-            if (info != null && userId.equals(info.userID)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** 创建/复用私聊群；遇到「群已销毁不可重建(108060)」自动换下一个确定性 id（双方一致），最多 3 次 */
-    private void tryCreatePrivateGroup(final String gid, final String peer, final String name, final int attempt,
-        final UniJSCallback callback) {
-        if (attempt > 3) {
-            JSONObject result = new JSONObject();
-            result.put("success", false);
-            result.put("message", "创建群聊失败（多次重试）");
-            if (callback != null) {
-                callback.invoke(result);
-            }
-            return;
-        }
-        android.util.Log.d("PrivateGroup", "tryCreate attempt=" + attempt + " gid=" + gid);
-        ZIMKit.createGroup(name, gid, new ArrayList<String>() {{ add(peer); }},
-            new CreateGroupCallback() {
-                @Override
-                public void onCreateGroup(ZIMKitGroupInfo groupInfo, ArrayList<ZIMErrorUserInfo> inviteUserErrors,
-                    ZIMError error) {
-                    if (error != null && error.code == ZIMErrorCode.SUCCESS) {
-                        android.util.Log.d("PrivateGroup", "createGroup ok gid=" + gid);
-                        markGroupBizType(gid, "private");
-                        // 后端登记
-                        registerTempGroupToBackend(gid,
-                            java.util.Collections.singletonList(peer));
-                        openGroupChatAndReply(gid, callback);
-                    } else if (error != null && error.code == ZIMErrorCode.GROUP_ALREADY_EXISTS) {
-                        android.util.Log.d("PrivateGroup", "already exists, join gid=" + gid);
-                        ZIMKit.joinGroup(gid, new JoinGroupCallback() {
-                            @Override
-                            public void onJoinGroup(ZIMKitGroupInfo g, ZIMError e) {
-                                if (e == null || e.code == ZIMErrorCode.SUCCESS
-                                    || e.code == ZIMErrorCode.MEMBER_IS_ALREADY_IN_THE_GROUP) {
-                                    android.util.Log.d("PrivateGroup", "join ok gid=" + gid);
-                                    markGroupBizType(gid, "private");
-                                    // 复用已存在的群同样要登记（幂等，已存在则补成员与资料）
-                                    registerTempGroupToBackend(gid,
-                                        java.util.Collections.singletonList(peer));
-                                    openGroupChatAndReply(gid, callback);
-                                } else {
-                                    android.util.Log.d("PrivateGroup", "join fail gid=" + gid
-                                        + " code=" + (e == null ? "" : e.code) + " -> retry new id");
-                                    tryCreatePrivateGroup("pg_" + md5Hex(gid).substring(0, 24), peer, name,
-                                        attempt + 1, callback);
-                                }
-                            }
-                        });
-                    } else {
-                        android.util.Log.d("PrivateGroup", "create fail gid=" + gid + " code="
-                            + (error == null ? "" : error.code) + " msg=" + (error == null ? "" : error.message));
-                        // 108060：原群已销毁 → 换 id 链重建（双方可算出同一 id）
-                        tryCreatePrivateGroup("pg_" + md5Hex(gid).substring(0, 24), peer, name, attempt + 1, callback);
-                    }
-                }
-            });
-    }
-
-    private void markGroupBizType(String groupId, String bizType) {
-        try {
-            HashMap<String, String> attrs = new HashMap<>();
-            attrs.put("bizType", bizType);
-            ZIMKitCore.getInstance().zim().setGroupAttributes(attrs, groupId,
-                new ZIMGroupAttributesOperatedCallback() {
-                    @Override
-                    public void onGroupAttributesOperated(String g, ArrayList<String> keys, ZIMError errorInfo) {
-                    }
-                });
-        } catch (Exception ignored) {
-        }
-    }
-
-    private void openGroupChatAndReply(String groupId, UniJSCallback callback) {
-        ZIMKitMessageFragment.setOnNativeDataListener(new BackToUniappCallback() {
-            @Override
-            public void onDataReceived(String data) {
-            }
-
-            @Override
-            public void onStartCall(String data) {
-            }
-
-            @Override
-            public void onCardAction(String action, String data) {
-                dispatchCardEvent(action, data);
-            }
-        });
-        ZIMKitRouter.toMessageActivity(mUniSDKInstance.getContext(), groupId,
-            ZIMKitConversationType.ZIMKitConversationTypeGroup);
-        JSONObject result = new JSONObject();
-        result.put("success", true);
-        result.put("groupId", groupId);
-        if (callback != null) {
-            callback.invoke(result);
         }
     }
 
@@ -1108,7 +970,7 @@ public class TestModule extends UniModule {
         });
     }
 
-    /** 私聊直连（客服 merchant_/customer_ 等 PEER 会话；普通用户私聊走 startPrivateGroupChat） */
+    /** 私聊直连（客服 merchant_/customer_ 等 PEER 会话；普通用户私聊走 {@link #startUserChat}） */
     @UniJSMethod(uiThread = true)
     public void startChatChecked(String conversationID, UniJSCallback callback) {
         try {
@@ -1523,35 +1385,220 @@ public class TestModule extends UniModule {
 
     @UniJSMethod(uiThread = true)
     public void createGroup(String groupName, String groupID, List<String> userIDs, String avatarUrl) {
-        //createGroup();
-//        ZIMKit.u
-       // im.zego.zim.ZIM.getInstance().createGroup();
+        final String gid = groupID;
+        final List<String> members = userIDs == null ? new ArrayList<>() : new ArrayList<>(userIDs);
+        final String avatar = avatarUrl;
+        String name = groupName == null ? "" : groupName.trim();
+        // 微信式临时群名：调用方没给名字、或给的是历史死板默认值「聊天」→ 用**成员昵称**拼名
+        if (name.isEmpty() || DEFAULT_GROUP_NAME.equals(name)) {
+            resolveTempGroupName(members, resolved ->
+                new android.os.Handler(android.os.Looper.getMainLooper())
+                    .post(() -> createZimGroup(resolved, gid, members, avatar)));
+        } else {
+            createZimGroup(name, gid, members, avatar);
+        }
+    }
 
+    /** 真正建群（群名已确定）：群头像 → bizType=temp → 后端登记 → 进入群聊 */
+    private void createZimGroup(String groupName, String groupID, List<String> userIDs, String avatarUrl) {
+        createZimGroup(groupName, groupID, userIDs, avatarUrl, null);
+    }
+
+    /**
+     * @param afterOpen 进群之后再执行（如"从单聊设置页发起群聊"成功后关掉设置页）
+     */
+    private void createZimGroup(String groupName, String groupID, List<String> userIDs, String avatarUrl,
+        final Runnable afterOpen) {
         ZIMKit.createGroup(groupName, groupID, userIDs, new CreateGroupCallback() {
             @Override
-            public void onCreateGroup(ZIMKitGroupInfo groupInfo, ArrayList<ZIMErrorUserInfo> inviteUserErrors, ZIMError error) {
-                if (error.code == ZIMErrorCode.SUCCESS) {
-
-                    // 🚀 STEP 1: Update the Group Avatar immediately using the core ZIM Engine
-                    im.zego.zim.ZIM.getInstance().updateGroupAvatarUrl(avatarUrl, groupInfo.getId(), new im.zego.zim.callback.ZIMGroupAvatarUrlUpdatedCallback() {
-                        @Override
-                        public void onGroupAvatarUrlUpdated(String groupID, String groupAvatarUrl, ZIMError errorInfo) {
-                            // Optional: You can check if the avatar upload succeeded or failed here
-                        }
-                    });
-
-                    // 🚀 STEP 1.5: 后端登记（勾选联系人建群走这条）：
-                    // SDK 建的群后端不知道 → 不登记则二维码/扫码/群详情全失败。
-                    // 成员 = 被邀请的人 + 自己（registerTempGroupToBackend 内部会补自己）
+            public void onCreateGroup(ZIMKitGroupInfo groupInfo, ArrayList<ZIMErrorUserInfo> inviteUserErrors,
+                ZIMError error) {
+                if (error != null && error.code == ZIMErrorCode.SUCCESS) {
+                    if (avatarUrl != null && !avatarUrl.isEmpty()) {
+                        im.zego.zim.ZIM.getInstance().updateGroupAvatarUrl(avatarUrl, groupInfo.getId(),
+                            (gid2, url2, e2) -> {
+                            });
+                    }
+                    // 后端登记：SDK 建的群后端不知道 → 不登记则二维码/扫码/群详情全失败
                     markGroupBizTypeStatic(groupID, "temp");
                     registerTempGroupToBackend(groupID, userIDs);
-
-                    // 🏁 STEP 2: Smoothly forward the user straight into the target chat interface screen
-                    ZIMKitRouter.toMessageActivity(mUniSDKInstance.getContext(), groupID, ZIMKitConversationType.ZIMKitConversationTypeGroup);
-
+                    // 建群后自动发一条**普通文本**「我发起了群聊」——
+                    // ZIM 的会话要有消息才进聊天列表，否则"建完群不发消息就看不到这个群"；
+                    // 这条消息让新群**立刻**出现在所有人（自己 + 被拉进来的人）的聊天列表里。
+                    sendGroupCreatedText(groupID, groupName);
+                    openNativeChat(groupID, true, afterOpen);
+                } else {
+                    // 不再静默：建群失败要能看见原因（群ID 撞车 / 成员不存在 / 网络…）
+                    android.util.Log.w("CreateGroup", "create fail gid=" + groupID + " code="
+                        + (error == null ? "" : error.code) + " msg=" + (error == null ? "" : error.message));
+                    toast(error == null ? "创建群聊失败" : error.message);
                 }
             }
         });
+    }
+
+    /** 历史/默认群名：等于它时按"成员昵称拼名"重算（微信式，不再是死板的「聊天」） */
+    private static final String DEFAULT_GROUP_NAME = "聊天";
+    /** ZIM 群名上限：50 字节（UTF-8） */
+    private static final int GROUP_NAME_MAX_BYTES = 50;
+
+    /**
+     * 建群后由**发起人发一条普通文本消息**「我发起了群聊」。
+     *
+     * <p>为什么必须发：ZIM 的会话要有消息才会出现在聊天列表 —— 这条消息让新群**立刻**有会话，
+     * 发起人与被拉进来的人都能马上在聊天列表看到该群（无需任何人手动发言）。
+     * 用**普通文本**而非自定义系统提示：不引入任何自定义渲染/样式，聊天页样式不会乱。
+     */
+    private static void sendGroupCreatedText(String groupId, String groupName) {
+        try {
+            ZIMKit.sendTextMessage("我发起了群聊", groupId, groupName == null ? "" : groupName,
+                ZIMConversationType.GROUP, error -> {
+                    if (error != null && error.code != ZIMErrorCode.SUCCESS) {
+                        // 失败不阻塞建群（聊天列表只是"晚一点"出现该群）
+                        android.util.Log.w("CreateGroup", "send created text fail: " + error.message);
+                    }
+                });
+        } catch (Exception e) {
+            android.util.Log.w("CreateGroup", "send created text exception: " + e.getMessage());
+        }
+    }
+
+    private interface GroupNameResolved {
+        void onName(String groupName);
+    }
+
+    /**
+     * 微信式临时群名：**「我 + 其他成员」的昵称用「、」连接，自己的名字永远在第一位**
+     * （例：`李四、张三、王五`）；超过 ZIM 上限（50 字节 UTF-8）按字符边界截断 + 省略号；
+     * 其他成员昵称一个都拿不到时兜底「群聊」（不拿"我自己的名字"冒充群名、不编造人名）。
+     */
+    private static void resolveTempGroupName(final List<String> memberZimIds, final GroupNameResolved cb) {
+        final List<String> ids = new ArrayList<>();
+        String self = null;
+        try {
+            self = ZIMKitCore.getInstance().getLocalUser() == null ? null
+                : ZIMKitCore.getInstance().getLocalUser().getId();
+        } catch (Exception ignored) {
+        }
+        if (memberZimIds != null) {
+            for (String raw : memberZimIds) {
+                String zim = normalizeUserZimId(raw);
+                if (zim.isEmpty() || (self != null && zim.equals(self))) {
+                    continue;
+                }
+                if (!ids.contains(zim)) {
+                    ids.add(zim);
+                }
+            }
+        }
+        // 群名以「我」开头（微信/QQ 同款）
+        final List<String> prefix = new ArrayList<>();
+        final String selfName = getLocalDisplayName();
+        if (!selfName.isEmpty()) {
+            prefix.add(selfName);
+        }
+        if (ids.isEmpty()) {
+            // 没有其他成员（正常进不来：建群至少选了 1 人）→ 只用自己名字/中性名
+            cb.onName(buildTempGroupName(prefix));
+            return;
+        }
+        try {
+            ZIMUsersInfoQueryConfig cfg = new ZIMUsersInfoQueryConfig();
+            cfg.isQueryFromServer = true;
+            zimInstance().queryUsersInfo(ids, cfg, (userList, errorUserList, error) -> {
+                List<String> names = new ArrayList<>();
+                if (userList != null) {
+                    for (String id : ids) {
+                        for (ZIMUserFullInfo u : userList) {
+                            if (u != null && u.baseInfo != null && id.equals(u.baseInfo.userID)) {
+                                String nm = u.baseInfo.userName == null ? "" : u.baseInfo.userName.trim();
+                                if (!nm.isEmpty()) {
+                                    names.add(nm);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (names.isEmpty()) {
+                    // 其他成员昵称一个都没拿到 → 中性兜底（不用"我自己"当群名）
+                    cb.onName("群聊");
+                    return;
+                }
+                List<String> all = new ArrayList<>(prefix);
+                all.addAll(names);
+                cb.onName(buildTempGroupName(all));
+            });
+        } catch (Exception e) {
+            android.util.Log.w("GroupName", "resolve fail: " + e.getMessage() + " → 兜底群聊");
+            cb.onName("群聊");
+        }
+    }
+
+    /**
+     * 本地昵称（拼群名用，排第一位）：优先 ZIMKit 本地用户昵称（登录时写入），
+     * 退回 {@code setBusinessConfig} 下发的昵称；都拿不到返回空串（调用方会跳过）。
+     */
+    private static String getLocalDisplayName() {
+        try {
+            com.zegocloud.zimkit.services.model.ZIMKitUser u = ZIMKitCore.getInstance().getLocalUser();
+            if (u != null && u.getName() != null && !u.getName().trim().isEmpty()) {
+                return u.getName().trim();
+            }
+        } catch (Exception ignored) {
+        }
+        String n = localUserName;
+        return n == null ? "" : n.trim();
+    }
+
+    /** 昵称列表 → 群名（「、」连接 + 上限截断）；空 → 「群聊」 */
+    private static String buildTempGroupName(List<String> names) {
+        StringBuilder sb = new StringBuilder();
+        if (names != null) {
+            for (String n : names) {
+                String name = n == null ? "" : n.trim();
+                if (name.isEmpty()) {
+                    continue;
+                }
+                if (sb.length() > 0) {
+                    sb.append("、");
+                }
+                sb.append(name);
+            }
+        }
+        if (sb.length() == 0) {
+            return "群聊";
+        }
+        return truncateGroupName(sb.toString());
+    }
+
+    /**
+     * 按 **UTF-8 字节** 截断到 ZIM 上限（50B）：超长时留 3 字节给「…」，
+     * 并按 **码点** 边界切，绝不把一个汉字切成半个（否则 ZIM 会报参数错误）。
+     */
+    private static String truncateGroupName(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        byte[] all = raw.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        if (all.length <= GROUP_NAME_MAX_BYTES) {
+            return raw;
+        }
+        int budget = GROUP_NAME_MAX_BYTES - 3; // 「…」占 3 字节
+        int end = 0;
+        int used = 0;
+        for (int i = 0; i < raw.length(); ) {
+            int cp = raw.codePointAt(i);
+            int cpBytes = new String(Character.toChars(cp))
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+            if (used + cpBytes > budget) {
+                break;
+            }
+            used += cpBytes;
+            i += Character.charCount(cp);
+            end = i;
+        }
+        return raw.substring(0, end) + "…";
     }
 
     /** 分享卡片到指定会话（通用：community_invite/product/store/article） */
@@ -1578,134 +1625,62 @@ public class TestModule extends UniModule {
         }
     }
 
-    /** 邀请加入社群：2人群聊（严格复用）内自动发送社群邀请卡片 */
+    /**
+     * 邀请加入社群：卡片**直接发到与对方的 PEER 单聊**（不再创建/复用 2 人群）。
+     * 与 {@link #sendToMemberCard} 共用同一条实现，只是 subType 固定为 COMMUNITY_INVITE。
+     */
     @UniJSMethod(uiThread = true)
     public void inviteCommunityMember(String peerZimId, String cardJson, UniJSCallback callback) {
-        try {
-            final String peer = peerZimId == null ? "" : peerZimId;
-            final String card = cardJson == null ? "" : cardJson;
-            final String self = ZIMKitCore.getInstance().getLocalUser().getId();
-            if (peer.isEmpty() || self == null || self.isEmpty()) {
-                invokeFail(callback, new Exception("peer/self empty"));
-                return;
-            }
-            zimInstance().queryGroupList((groups, error) -> {
-                final List<String> gids = new ArrayList<>();
-                if (groups != null) {
-                    for (im.zego.zim.entity.ZIMGroup g : groups) {
-                        if (g != null && g.baseInfo != null && g.baseInfo.groupID != null) {
-                            gids.add(g.baseInfo.groupID);
-                        }
-                    }
-                }
-                findTwoPersonGroupForInvite(gids, 0, peer, self, card,
-                    com.zegocloud.zimkit.services.model.ZIMKitMessageSubType.COMMUNITY_INVITE, callback);
-            });
-        } catch (Exception e) {
-            invokeFail(callback, e);
-        }
+        sendCardToPeer(peerZimId,
+            com.zegocloud.zimkit.services.model.ZIMKitMessageSubType.COMMUNITY_INVITE, cardJson, callback);
     }
 
-    /** 分享卡片到指定好友：2人群聊（严格复用）内发送（通用：product/store/article/community_invite） */
+    /** 分享卡片到指定好友：**直接发到 PEER 单聊**（通用：product/store/article/community_invite） */
     @UniJSMethod(uiThread = true)
     public void sendToMemberCard(String peerZimId, int subType, String cardJson, UniJSCallback callback) {
-        try {
-            final String peer = peerZimId == null ? "" : peerZimId;
-            final String card = cardJson == null ? "" : cardJson;
-            final String self = ZIMKitCore.getInstance().getLocalUser().getId();
-            if (peer.isEmpty() || self == null || self.isEmpty()) {
-                invokeFail(callback, new Exception("peer/self empty"));
-                return;
-            }
-            zimInstance().queryGroupList((groups, error) -> {
-                final List<String> gids = new ArrayList<>();
-                if (groups != null) {
-                    for (im.zego.zim.entity.ZIMGroup g : groups) {
-                        if (g != null && g.baseInfo != null && g.baseInfo.groupID != null) {
-                            gids.add(g.baseInfo.groupID);
-                        }
-                    }
-                }
-                findTwoPersonGroupForInvite(gids, 0, peer, self, card, subType, callback);
-            });
-        } catch (Exception e) {
-            invokeFail(callback, e);
-        }
+        sendCardToPeer(peerZimId, subType, cardJson, callback);
     }
 
     /**
-     * 临时群 ID 生成器：时间戳 + 进程内自增序号。
-     * 用自增序号替代随机数，保证「同一毫秒内连续创建多个群」也绝不撞 ID。
+     * 发卡片到与某人的单聊：**C 方案预检**（目标账号不存在 → 明确失败，不静默、不建空群）
+     * + PEER 发送。会话天然唯一（conversationID = 对方 userID），不存在“2 人复用”。
      */
-    private static final java.util.concurrent.atomic.AtomicLong TEMP_GROUP_SEQ =
-        new java.util.concurrent.atomic.AtomicLong(0);
-
-    private static String nextTempGroupId() {
-        return "g_" + System.currentTimeMillis() + "_" + TEMP_GROUP_SEQ.incrementAndGet();
-    }
-
-    private void findTwoPersonGroupForInvite(final List<String> gids, final int index,
-        final String peer, final String self, final String cardJson, final int subType,
-        final UniJSCallback callback) {
-        if (index >= gids.size()) {
-            // 无“仅我+对方”2人群 → 新建（群名=群聊，bizType=temp）
-            // ⚠️ 群 ID 必须全局唯一：多选分享时会给多个联系人连续建群，
-            // 原来 "g_"+currentTimeMillis()+"_"+(int)(Math.random()*99999) 在同一毫秒内有概率撞 ID，
-            // 撞了第二次 createGroup 就报“群已存在” → 那张卡片发不出去（且失败原因被 toast 吞掉）。
-            String newGid = nextTempGroupId();
-            ZIMKit.createGroup(PRIVATE_CHAT_NAME, newGid, new ArrayList<String>() {{ add(peer); }},
-                new CreateGroupCallback() {
-                    @Override
-                    public void onCreateGroup(ZIMKitGroupInfo groupInfo, ArrayList<ZIMErrorUserInfo> inviteUserErrors,
-                        ZIMError error) {
-                        if (error != null && error.code == ZIMErrorCode.SUCCESS) {
-                            markGroupBizType(newGid, "temp");
-                            sendInviteCard(newGid, cardJson, subType, callback);
-                        } else {
-                            JSONObject result = new JSONObject();
-                            result.put("success", false);
-                            result.put("message", error == null ? "创建失败" : error.message);
-                            if (callback != null) {
-                                callback.invoke(result);
-                            }
-                        }
-                    }
-                });
-            return;
-        }
-        final String gid = gids.get(index);
-        ZIMGroupMemberQueryConfig config = new ZIMGroupMemberQueryConfig();
-        config.count = 100;
-        config.nextFlag = 0;
-        zimInstance().queryGroupMemberList(gid, config, new ZIMGroupMemberListQueriedCallback() {
-            @Override
-            public void onGroupMemberListQueried(String groupId, ArrayList<ZIMGroupMemberInfo> memberList,
-                int flag, ZIMError errorInfo) {
-                if (errorInfo != null && errorInfo.code == ZIMErrorCode.SUCCESS && memberList != null
-                    && memberList.size() == 2 && containsUser(memberList, self) && containsUser(memberList, peer)) {
-                    zimInstance().queryGroupAllAttributes(gid, (g, attrs, e) -> {
-                        boolean isCommunity = attrs != null && "community".equals(attrs.get("bizType"));
-                        if (isCommunity) {
-                            findTwoPersonGroupForInvite(gids, index + 1, peer, self, cardJson, subType, callback);
-                        } else {
-                            markGroupBizType(gid, "temp");
-                            sendInviteCard(gid, cardJson, subType, callback);
-                        }
-                    });
-                } else {
-                    findTwoPersonGroupForInvite(gids, index + 1, peer, self, cardJson, subType, callback);
-                }
+    private void sendCardToPeer(String peerZimId, int subType, String cardJson, UniJSCallback callback) {
+        try {
+            final String peer = normalizeUserZimId(peerZimId);
+            final String card = cardJson == null ? "" : cardJson;
+            if (peer.isEmpty()) {
+                invokeFail(callback, new Exception("缺少对方会员ID"));
+                return;
             }
-        });
+            checkPeerAccount(peer, (ok, code, message) -> {
+                if (!ok) {
+                    JSONObject result = new JSONObject();
+                    result.put("success", false);
+                    result.put("code", code);
+                    result.put("message", message);
+                    if (callback != null) {
+                        callback.invoke(result);
+                    }
+                    return;
+                }
+                sendCustomCardToPeer(peer, subType, card, callback);
+            });
+        } catch (Exception e) {
+            invokeFail(callback, e);
+        }
     }
 
-    private void sendInviteCard(String gid, String cardJson, int subType, UniJSCallback callback) {
-        ZIMKit.sendCustomMessage(cardJson, subType,
-            gid, ZIMConversationType.GROUP, new MessageSentCallback() {
+    /** 真正的 PEER 自定义卡片发送（不发群、不建群、不登记临时群） */
+    private static void sendCustomCardToPeer(String peerZimId, int subType, String cardJson,
+        UniJSCallback callback) {
+        ZIMKit.sendCustomMessage(cardJson, subType, peerZimId, ZIMConversationType.PEER,
+            new MessageSentCallback() {
                 @Override
                 public void onMessageSent(ZIMError errorInfo) {
+                    boolean success = errorInfo != null && errorInfo.code == ZIMErrorCode.SUCCESS;
                     JSONObject result = new JSONObject();
-                    result.put("success", errorInfo != null && errorInfo.code == ZIMErrorCode.SUCCESS);
+                    result.put("success", success);
                     result.put("message", errorInfo == null ? "" : errorInfo.message);
                     if (callback != null) {
                         callback.invoke(result);
@@ -1713,6 +1688,7 @@ public class TestModule extends UniModule {
                 }
             });
     }
+
 
     /** 给群打业务类型标记（ZIM 群属性，存 ZIM 服务器：卸载/换机不丢）bizType=community|temp */
     @UniJSMethod(uiThread = true)
@@ -2074,13 +2050,21 @@ public class TestModule extends UniModule {
     private static final java.util.Map<String, String> groupNameOverride =
         new java.util.concurrent.ConcurrentHashMap<>();
 
+    /**
+     * 群/社群频道会话（事件 "GROUP" → Vuex groupConversationList → 社群首页「常规聊天」群卡片）。
+     *
+     * <p>⚠️ 必须显式加**会话类型过滤**：`marks` 对"从未标记过的会话"的行为并不明确
+     * （全项目从未调用 setConversationMark），只靠 `marks=[0]` 无法保证把**单聊**排除掉 ——
+     * 而页面的群卡片区是按"群"渲染的，单聊一旦混进来就会**重复出现**（群区 + 单聊区各一条）。
+     * `marks` 保留：它是既有的"客服会话（buyer/seller）不进入本列表"的分流口径，去掉会引入客服会话。
+     */
     private static void loadGroupConversations() {
         ZIMConversationQueryConfig config = new ZIMConversationQueryConfig();
         config.count = 100;
-      //filter
         ZIMConversationFilterOption filterOption = new ZIMConversationFilterOption();
         filterOption.conversationTypes = new ArrayList<>();
-//        filterOption.conversationTypes.add(ZIMConversationType.GROUP); // Zego server filters to 1-vs-1 only
+        // 只要群会话（单聊走 loadPeerConversations / getConversationListForShare）
+        filterOption.conversationTypes.add(ZIMConversationType.GROUP);
         ArrayList<Integer> marksList = new ArrayList<>(Arrays.asList(0));
         filterOption.marks = marksList;
         ZegoSignalingPlugin.getInstance().queryConversationList(config, filterOption, (conversationList, errorInfo) -> {
@@ -2501,20 +2485,22 @@ public class TestModule extends UniModule {
         }
     }
 
+    /**
+     * 单聊（PEER）会话（事件 "PEER_LIST_SYNCED"）。
+     *
+     * <p>⚠️ 历史上这里有 `marks=[-1]` 过滤：全项目**从未调用** `setConversationMark`
+     * （会话标记只记录"自己设过的值"），-1 也不是有效标记值 → 查询结果会被过滤成**空列表**，
+     * 于是 `PEER_LIST_SYNCED` / Vuex `userConversationList` 长期为空（单聊未读不计入社群角标）。
+     * 现在**只用会话类型过滤**。
+     */
     private void loadPeerConversations() {
         ZIMConversationQueryConfig config = new ZIMConversationQueryConfig();
         config.count = 100;
-        ZIMConversation conversation = new ZIMConversation();
-//        conversation.marks.add(1);
-//        conversation.marks.add(2);
-//        config.nextConversation = conversation;
-
 
         ZIMConversationFilterOption filterOption = new ZIMConversationFilterOption();
         filterOption.conversationTypes = new ArrayList<>();
-        ArrayList<Integer> marksList = new ArrayList<>(Arrays.asList(-1));
-        filterOption.marks = marksList;
-        filterOption.conversationTypes.add(ZIMConversationType.PEER); // Zego server filters to 1-vs-1 only
+        // 只按类型过滤（ZIM 服务端过滤出 1v1）；不再设 marks
+        filterOption.conversationTypes.add(ZIMConversationType.PEER);
 
         ZegoSignalingPlugin.getInstance().queryConversationList(config, filterOption, (conversationList, errorInfo) -> {
             if (errorInfo.code != ZIMErrorCode.SUCCESS) {
@@ -2569,7 +2555,8 @@ public class TestModule extends UniModule {
                 () -> new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
                     try {
                         loadGroupConversations();
-                      //  loadPeerConversations();
+                        // 私聊已是真 PEER 单聊 → 单聊会话变化同样要秒级重推（角标/列表都依赖它）
+                        loadPeerConversations();
                         if (globalJsCallback != null) {
                             JSONObject eventPayload = new JSONObject();
                             eventPayload.put("event", "CONVERSATION_LIVE");
@@ -2721,9 +2708,6 @@ public class TestModule extends UniModule {
     private static UniJSCallback sGroupMembersCallback;
     private static boolean isDelegateRegistered = false;
 
-    /** 2 人「聊天」与普通群聊的统一默认群名（ZIM 群名双方共享，不能写成任一方的昵称） */
-    private static final String PRIVATE_CHAT_NAME = "聊天";
-
     /** 原生红包 Activity 调用业务接口所需的静态配置 */
     private static String businessBaseUrl = "https://buyer-ceshi.shanxunsw.com/buyer";
     private static String localUserId = "";
@@ -2819,7 +2803,7 @@ public class TestModule extends UniModule {
         // （后者在 setBusinessConfig 时就有了，两者是两件事 —— 用错判据会让极冷启动提示语不对）
         com.zegocloud.zimkit.common.utils.UniappEventApi.setChannelProbe(TestModule::hasGlobalEventChannel);
         // 极冷启动（点悬浮球时 uniapp 还没起来）→ 由这里把 uniapp 拉起来（zimkit 不能反向依赖本模块）
-        com.zegocloud.zimkit.common.utils.UniappEventApi.setLauncher(this::bringUniappToFront);
+        com.zegocloud.zimkit.common.utils.UniappEventApi.setLauncher(TestModule::bringUniappToFront);
         // 聊天页「社群店铺」悬浮球：显隐由业务后端决定（群主开关 + 群主有 PASS 店铺，后端已综合）。
         // 轻量接口 GET /buyer/social/group/{id}/store-entry
         //   → { showStore, distributionId, groupId, storeLogo, storeName }
@@ -2956,12 +2940,10 @@ public class TestModule extends UniModule {
      * 所以这里**直接按类名启动 uniapp 宿主** `io.dcloud.PandoraEntryActivity`（debug 基座的
      * `PullDebugActivity` 只是 HBuilderX 的调试入口，不能当"主界面"用），失败才回退 launcher intent。
      */
-    private void bringUniappToFront() {
+    private static void bringUniappToFront() {
         try {
+            // 只要"当前栈顶 Activity"即可：冷启动场景 uniapp 还没起来时 sAppContext 已由登录/setBusinessConfig 缓存
             android.content.Context ctx = dialogContext();
-            if (ctx == null && mUniSDKInstance != null) {
-                ctx = mUniSDKInstance.getContext();
-            }
             if (ctx == null) {
                 android.util.Log.w("CardBridge", "bringUniappToFront: ctx 为空");
                 return;
@@ -3037,38 +3019,23 @@ public class TestModule extends UniModule {
         FriendEventBridge.setCallback(callback);
     }
 
-    /** 私聊群自动升级：bizType=private 的群拉人后 → temp（群聊） */
+    /**
+     * 注册「群设置页（ZIMKit 原生）动作桥」：邀请 / 踢出 / 退出 / 成员点击 / 群二维码。
+     *
+     * <p>私聊已改为真 PEER 单聊（不再产生 {@code bizType=private} 的群），
+     * 所以这里**不再有 private→temp 升级逻辑**，邀请一律走「把人拉进当前群」。
+     */
     @UniJSMethod(uiThread = true)
     public void registerGroupBizTypeBridge(UniJSCallback callback) {
         cacheContext(safeContext());
-        io.dcloud.uniplugin.groupbridge.GroupBizTypeBridge.register();
         // 群设置页（ZIMKit 原生）动作桥：邀请/踢出/退出
         com.zegocloud.zimkit.services.internal.GroupSettingBridge.setListener(
             new com.zegocloud.zimkit.services.internal.GroupSettingBridge.Listener() {
                 @Override
-                public void onInvite(String groupId) {                    final String gid = groupId == null ? "" : groupId;
+                public void onInvite(String groupId) {
+                    final String gid = groupId == null ? "" : groupId;
                     try {
-                        zimInstance().queryGroupAllAttributes(gid, (g, attrs, e) -> {
-                            boolean privateGroup = attrs != null && "private".equals(attrs.get("bizType"));
-                            if (privateGroup) {
-                                fetchAllGroupMembers(gid, new ArrayList<ZIMGroupMemberInfo>(), 0, members -> {
-                                    String self = ZIMKitCore.getInstance().getLocalUser().getId();
-                                    String peer = null;
-                                    if (members != null) {
-                                        for (ZIMGroupMemberInfo info : members) {
-                                            if (info != null && info.userID != null
-                                                && !info.userID.equals(self)) {
-                                                peer = info.userID;
-                                                break;
-                                            }
-                                        }
-                                    }
-                                    openNativeCreateGroupFromPrivate(peer);
-                                });
-                            } else {
-                                openNativeInvitePicker(gid);
-                            }
-                        });
+                        openNativeInvitePicker(gid);
                     } catch (Exception ex) {
                         ex.printStackTrace();
                     }
@@ -3076,7 +3043,14 @@ public class TestModule extends UniModule {
 
                 @Override
                 public void onInvitePeer(String peerUserId) {
-                    openNativeCreateGroupFromPrivate(peerUserId);
+                    // 单聊设置页「＋」：多选联系人 → 建新群并进入（微信式）
+                    openCreateGroupWithPeerPicker(peerUserId);
+                }
+
+                @Override
+                public void onPeerAvatarClick(String peerUserId) {
+                    // 单聊设置页点头像 → 对方「个人信息」页（看资料；发消息走真私聊）
+                    openPeerProfile(peerUserId);
                 }
 
                 @Override
@@ -3197,8 +3171,9 @@ public class TestModule extends UniModule {
      * 文档原文：`前端用 ZIM SDK createGroup 成功后立刻回调本接口，把 groupId/名称/头像/成员写入本地。
      * 幂等：已存在则补成员与资料。有本地记录后扫码解析、join、详情才可用。`
      *
-     * <p><b>为什么必须调</b>：群是客户端用 ZIM SDK 建的（保留自造 groupId / 2 人复用逻辑），
+     * <p><b>为什么必须调</b>：群是客户端用 ZIM SDK 建的（自造 groupId），
      * 后端不知道这个群 → `li_group` 无记录 → 二维码/扫码解析/join/群详情全部失败。
+     * （**私聊已改为真 PEER 单聊**，不再建 2 人群，所以这里只为「≥2 人建的群」登记。）
      *
      * <p>只传 `groupId` + `memberIds`：
      * 群名/群头像按文档由**后端从 ZIM 补**（`不传则尝试从 ZIM 补，仍空则用「xxx的临时群」`），
@@ -3336,6 +3311,140 @@ public class TestModule extends UniModule {
         }
     }
 
+    /**
+     * 单聊设置页「＋」发起群聊（微信式）：多选联系人 → 建新群（自己 + 当前单聊对象 + 已选）→ 进入群聊。
+     *
+     * <p>入口：zimkit 的 {@code ZIMKitPrivateChatSettingActivity} 点击「＋」→
+     * {@code GroupSettingBridge.onInvitePeer(peerZimId)} → 本方法（原生页到原生页，完全不经过 uniapp）。
+     * 选择器里**排除当前单聊对象**（他本来就会进新群），并要求至少选 1 人（否则只是原样的 2 人，无意义）。
+     */
+    private void openCreateGroupWithPeerPicker(String peerZimId) {
+        try {
+            final String peer = normalizeUserZimId(peerZimId);
+            if (peer.isEmpty()) {
+                toast("缺少对方会员ID");
+                return;
+            }
+            JSONObject opts = new JSONObject();
+            opts.put("dataSource", "FRIENDS");
+            opts.put("mode", "multi");
+            opts.put("title", "发起群聊");
+            opts.put("scene", "createGroup");
+            opts.put("action", "CREATE_GROUP");
+            opts.put("confirmText", "发起群聊");
+            JSONArray exclude = new JSONArray();
+            exclude.add(io.dcloud.uniplugin.memberpicker.Member.stripZimPrefix(peer));
+            opts.put("excludeIds", exclude);
+            launchNativePicker(opts, new UniJSCallback() {
+                @Override
+                public void invokeAndKeepAlive(Object data) {
+                    JSONObject res = (JSONObject) data;
+                    if (res == null || Boolean.TRUE.equals(res.getBoolean("canceled"))) {
+                        return;
+                    }
+                    List<String> ids = parseMembersToIds(res);
+                    if (ids.isEmpty()) {
+                        toast("请至少选择一位联系人");
+                        return;
+                    }
+                    createGroupWithMembers(peer, ids);
+                }
+
+                @Override
+                public void invoke(Object data) {
+                    invokeAndKeepAlive(data);
+                }
+            });
+        } catch (Exception e) {
+            android.util.Log.w("CreateGroup", "picker fail: " + e.getMessage());
+            toast("发起群聊失败：" + (e == null ? "" : e.getMessage()));
+        }
+    }
+
+    /** 新群 ID：时间戳 + 进程内自增序号（同一毫秒连续建群也不会撞 ID） */
+    private static final java.util.concurrent.atomic.AtomicLong GROUP_SEQ =
+        new java.util.concurrent.atomic.AtomicLong(0);
+
+    private static String nextGroupId() {
+        return "g_" + System.currentTimeMillis() + "_" + GROUP_SEQ.incrementAndGet();
+    }
+
+    /** 新建群的默认群名（与 uniapp「＋ → 创建群聊」保持一致，之后群成员可自行改名） */
+    private static final String GROUP_DEFAULT_NAME = "聊天";
+
+    /**
+     * 建群（当前单聊对象 + 已选联系人）并进入群聊。
+     *
+     * <p>与 uniapp 的「＋ → 创建群聊」同一套业务口径：
+     * {@code bizType=temp} + 后端登记（不登记则二维码/扫码/详情不可用）。
+     * 建群成功后**关掉「聊天设置」页**，这样从新群返回时回到单聊，而不是回到设置页。
+     */
+    private void createGroupWithMembers(String peerZimId, List<String> selectedMemberIds) {
+        String self = null;
+        try {
+            self = ZIMKitCore.getInstance().getLocalUser() == null ? null
+                : ZIMKitCore.getInstance().getLocalUser().getId();
+        } catch (Exception ignored) {
+        }
+        final List<String> members = new ArrayList<>();
+        final String peer = normalizeUserZimId(peerZimId);
+        if (!peer.isEmpty() && (self == null || !peer.equals(self))) {
+            members.add(peer);
+        }
+        if (selectedMemberIds != null) {
+            for (String mid : selectedMemberIds) {
+                if (mid == null || mid.isEmpty()) {
+                    continue;
+                }
+                String zim = mid.startsWith("user_") ? mid : ("user_" + mid);
+                if (self != null && zim.equals(self)) {
+                    continue;
+                }
+                if (!members.contains(zim)) {
+                    members.add(zim);
+                }
+            }
+        }
+        if (members.isEmpty()) {
+            toast("请至少选择一位联系人");
+            return;
+        }
+        final String newGid = nextGroupId();
+        android.util.Log.i("CreateGroup", "create group gid=" + newGid + " members=" + members);
+        // 微信式群名：成员昵称拼名（超长截断+省略号）→ 建群 → 进群 → 关设置页
+        resolveTempGroupName(members, name ->
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                createZimGroup(name, newGid, members, "", () -> {
+                    // 打开新群**之后**再关掉「聊天设置」页（先关会出现"栈顶为空"的时序风险）：
+                    // 这样从新群返回时回到单聊，而不是回到设置页（微信同款手感）
+                    try {
+                        com.zegocloud.zimkit.components.message.ui
+                            .ZIMKitPrivateChatSettingActivity.finishCurrent();
+                    } catch (Exception ignored) {
+                    }
+                })));
+    }
+
+    /** 打开某个用户的「个人信息」页（单聊场景：**无群上下文** → 不显示身份/加入时间/禁言/踢出） */
+    private void openPeerProfile(String peerZimId) {
+        try {
+            final String zim = normalizeUserZimId(peerZimId);
+            if (zim.isEmpty()) {
+                return;
+            }
+            Context ctx = dialogContext();
+            if (ctx == null) {
+                android.util.Log.w("MemberInfo", "open peer profile skipped: no context");
+                return;
+            }
+            // 客服前缀仍交给原回调（那条链路不动）；普通用户「发消息」走我们的真私聊
+            MemberInfoActivity.setMemberInfoCallback(zimid -> openPeerChat(zimid));
+            MemberInfoActivity.start(ctx, "", zim);
+        } catch (Exception e) {
+            android.util.Log.w("MemberInfo", "open peer profile fail: " + e.getMessage());
+        }
+    }
+
     private void openNativeInvitePicker(String groupId) {
         try {
             JSONObject opts = new JSONObject();
@@ -3366,78 +3475,10 @@ public class TestModule extends UniModule {
         }
     }
 
-    /** 私聊（private）拉人：新建群聊（包含原对端 + 选择的好友），原私聊保留 */
-    private void openNativeCreateGroupFromPrivate(String peer) {
-        try {
-            JSONObject opts = new JSONObject();
-            opts.put("dataSource", "FRIENDS");
-            opts.put("mode", "multi");
-            opts.put("title", "拉人建群");
-            opts.put("excludeGroupId", "");
-            opts.put("scene", "createGroup");
-            opts.put("action", "CREATE_GROUP");
-            launchNativePicker(opts, new UniJSCallback() {
-                @Override
-                public void invokeAndKeepAlive(Object data) {
-                    JSONObject res = (JSONObject) data;
-                    List<String> ids = parseMembersToIds(res);
-                    List<String> members = new ArrayList<>();
-                    if (peer != null && !peer.isEmpty()) {
-                        members.add(peer);
-                    }
-                    members.addAll(ids);
-                    if (members.isEmpty()) {
-                        return;
-                    }
-                    createNewGroupFromPrivate(members, PRIVATE_CHAT_NAME, null);
-                }
-
-                @Override
-                public void invoke(Object data) {
-                    invokeAndKeepAlive(data);
-                }
-            });
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
     /** 拉人进群：直接邀请进当前群（无“私聊/新建群”概念） */
     @UniJSMethod(uiThread = true)
     public void inviteUsersSmart(String groupId, String memberIdsJson, UniJSCallback callback) {
         inviteUsersToGroup(groupId, memberIdsJson, callback);
-    }
-
-    /** 创建“群聊”新群（bizType=temp），成功后进入聊天 */
-    private void createNewGroupFromPrivate(List<String> members, String name, UniJSCallback callback) {
-        try {
-            String newGid = "g_" + System.currentTimeMillis() + "_" + (int) (Math.random() * 99999);
-            ZIMKit.createGroup(name == null || name.isEmpty() ? PRIVATE_CHAT_NAME : name, newGid,
-                new ArrayList<String>(members), new CreateGroupCallback() {
-                    @Override
-                    public void onCreateGroup(ZIMKitGroupInfo groupInfo, ArrayList<ZIMErrorUserInfo> inviteUserErrors,
-                        ZIMError error) {
-                        if (error != null && error.code == ZIMErrorCode.SUCCESS) {
-                            android.util.Log.d("PrivateGroup", "createGroupFromPrivate ok gid=" + newGid);
-                            markGroupBizType(newGid, "temp");
-                            // 后端登记（成员 = 被拉的人 + 自己）
-                            registerTempGroupToBackend(newGid, members);
-                            openGroupChatAndReply(newGid, callback);
-                        } else {
-                            android.util.Log.d("PrivateGroup", "createGroupFromPrivate fail code="
-                                + (error == null ? "" : error.code) + " msg=" + (error == null ? "" : error.message));
-                            JSONObject result = new JSONObject();
-                            result.put("success", false);
-                            result.put("message", error == null ? "创建失败" : error.message);
-                            if (callback != null) {
-                                callback.invoke(result);
-                            }
-                        }
-                    }
-                });
-        } catch (Exception e) {
-            invokeFail(callback, e);
-        }
     }
 
     private void openNativeKickPicker(String groupId) {
@@ -3487,8 +3528,13 @@ public class TestModule extends UniModule {
         if (onResult != null) {
             sMemberPickerCallbacks.put(requestId, onResult);
         }
-        io.dcloud.uniplugin.memberpicker.MemberPickerActivity.start(
-            mUniSDKInstance.getContext(), opts.toString());
+        // 上下文优先用**当前栈顶 Activity**（原生页发起的场景：如单聊设置页「＋」发起群聊），
+        // 拿不到再退回 uniapp 上下文
+        Context ctx = dialogContext();
+        if (ctx == null && mUniSDKInstance != null) {
+            ctx = mUniSDKInstance.getContext();
+        }
+        io.dcloud.uniplugin.memberpicker.MemberPickerActivity.start(ctx, opts.toString());
     }
 
     private List<String> parseMembersToIds(JSONObject res) {
@@ -3730,7 +3776,8 @@ public class TestModule extends UniModule {
     public void refreshConversations(UniJSCallback callback) {
         try {
             loadGroupConversations();
-            //loadPeerConversations();
+            // 单聊（PEER）同样重推：新私聊要立刻出现在聊天列表
+            loadPeerConversations();
             if (callback != null) {
                 JSONObject r = new JSONObject();
                 r.put("success", true);
@@ -3907,62 +3954,6 @@ public class TestModule extends UniModule {
     }
 
     /**
-     * 原生页发起单聊（供 MemberInfoActivity 的「发消息」按钮调用）。
-     * 与 uniapp profile.vue 的 startChat 同口径：
-     * 客服（merchant_/customer_）走 PEER 直连；普通用户走「2 人群聊」（自动创建/复用，无需加好友）。
-     */
-    /**
-     * 原生页发起聊天（供 MemberInfoActivity 的「发消息」按钮调用）。
-     *
-     * <p>与 uniapp profile.vue 的 startChat 同口径：
-     * <ul>
-     *   <li>客服（merchant_/customer_）→ PEER 直连</li>
-     *   <li>普通用户 → **走「2 人复用创建群聊」**（{@link #startTwoPersonChatStatic}）：
-     *       优先复用【仅我+对方】的 2 人群，没有就新建「聊天」群。**不要求是好友**。</li>
-     * </ul>
-     */
-    public static void openMemberChat(String zimUserId) {
-
-//        return;
-        String peer = zimUserId == null ? "" : zimUserId;
-
-        if (peer.isEmpty()) {
-            return;
-        }
-        try {
-            boolean peerChat = peer.startsWith("merchant_") || peer.startsWith("customer_");
-            android.util.Log.i("MemberInfo", "openMemberChat peer=" + peer + " peerChat=" + peerChat);
-            if (peerChat) {
-                openPeerChatStatic(peer);
-                return;
-            }
-            // 复用与 uniapp 桥完全相同的「2 人复用/新建」逻辑
-            startTwoPersonChatStatic(peer, null);
-        } catch (Exception e) {
-            android.util.Log.w("MemberInfo", "openMemberChat fail: " + e.getMessage());
-        }
-    }
-
-    private static void openPeerChatStatic(String conversationID) {
-        TestModule.groupId = "";
-        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
-            Context ctx = null;
-            try {
-                ctx = com.zegocloud.zimkit.common.utils.ZIMKitActivityUtils.getCurrentActivity();
-            } catch (Exception ignored) {
-            }
-            if (ctx == null) {
-                ctx = sAppContext;
-            }
-            if (ctx == null) {
-                android.util.Log.w("MemberInfo", "openPeerChat skipped: no context");
-                return;
-            }
-            ZIMKitRouter.toMessageActivity(ctx, conversationID,
-                com.zegocloud.zimkit.common.enums.ZIMKitConversationType.ZIMKitConversationTypePeer);
-        });
-    }
-
     /**
      * 原生页发好友申请（供 MemberInfoActivity 的「添加好友」按钮调用）。
      * 与 uniapp 的 {@code sendFriendApplication} 同一实现（走 ZIM 好友申请）。
@@ -4544,20 +4535,6 @@ public class TestModule extends UniModule {
         }
     }
 
-    private static String md5Hex(String s) {
-        try {
-            java.security.MessageDigest md = java.security.MessageDigest.getInstance("MD5");
-            byte[] d = md.digest((s == null ? "" : s).getBytes("UTF-8"));
-            StringBuilder sb = new StringBuilder();
-            for (byte b : d) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
-        } catch (Exception e) {
-            return String.valueOf((s == null ? "" : s).hashCode());
-        }
-    }
-
     /** "[\"10001\",\"10002\"]" -> ["user_10001","user_10002"] */
     private static ArrayList<String> parseZimIds(String memberIdsJson) {        ArrayList<String> ids = new ArrayList<>();
         if (memberIdsJson == null || memberIdsJson.isEmpty()) {
@@ -4620,6 +4597,14 @@ public class TestModule extends UniModule {
         }
     }
 
+    /**
+     * 会话列表（分享组件 / 社群首页「常规聊天」共用同一数据源）。
+     *
+     * <p>返回**完整会话字段**（Gson 序列化，与群列表 {@code pushGroupConversations} 同一形状）：
+     * {@code lastMessage}(含 type/message/timestamp) / {@code unreadMessageCount} / {@code muted} /
+     * {@code updateTime} 等 —— 列表要显示**预览、时间、未读、免打扰**都靠这些字段，
+     * 不能只回 id/名称/头像（那样列表只能写死"暂无消息"，属于误导性兜底）。
+     */
     @UniJSMethod(uiThread = true)
     public void getConversationListForShare(UniJSCallback callback) {
         try {
@@ -4628,16 +4613,36 @@ public class TestModule extends UniModule {
             ZegoSignalingPlugin.getInstance().queryConversationList(config, (conversationList, errorInfo) -> {
                 com.alibaba.fastjson.JSONArray arr = new com.alibaba.fastjson.JSONArray();
                 if (conversationList != null) {
-                    for (im.zego.zim.entity.ZIMConversation conv : conversationList) {
-                        com.alibaba.fastjson.JSONObject obj = new com.alibaba.fastjson.JSONObject();
-                        obj.put("conversationID", conv.conversationID);
+                    arr = com.alibaba.fastjson.JSON.parseArray(
+                        new com.google.gson.Gson().toJson(conversationList));
+                    for (int i = 0; i < arr.size() && i < conversationList.size(); i++) {
+                        com.alibaba.fastjson.JSONObject obj = arr.getJSONObject(i);
+                        if (obj == null) {
+                            continue;
+                        }
+                        im.zego.zim.entity.ZIMConversation conv = conversationList.get(i);
+                        if (conv == null) {
+                            continue;
+                        }
+                        if (obj.getString("conversationID") == null) {
+                            obj.put("conversationID", conv.conversationID == null ? "" : conv.conversationID);
+                        }
                         String name = conv.conversationName;
-                        obj.put("conversationName", (name == null || name.isEmpty()) ? conv.conversationID : name);
-                        obj.put("conversationAvatarUrl",
-                            conv.conversationAvatarUrl == null ? "" : conv.conversationAvatarUrl);
+                        if (name == null || name.isEmpty()) {
+                            obj.put("conversationName", conv.conversationID == null ? "" : conv.conversationID);
+                        }
+                        if (obj.getString("conversationAvatarUrl") == null) {
+                            obj.put("conversationAvatarUrl",
+                                conv.conversationAvatarUrl == null ? "" : conv.conversationAvatarUrl);
+                        }
                         obj.put("conversationType",
                             conv.type == im.zego.zim.enums.ZIMConversationType.PEER ? "peer" : "group");
-                        arr.add(obj);
+                        // 免打扰标记（列表卡片右上角铃铛+斜线）
+                        obj.put("muted", conv.notificationStatus
+                            == im.zego.zim.enums.ZIMConversationNotificationStatus.DO_NOT_DISTURB);
+                        // 会话时间必须用最后一条消息的时间（orderKey 不是时间戳，拿去格式化会得到 5195/07/26）
+                        obj.put("updateTime",
+                            conv.lastMessage != null ? conv.lastMessage.getTimestamp() : 0L);
                     }
                 }
                 com.alibaba.fastjson.JSONObject result = new com.alibaba.fastjson.JSONObject();
@@ -4922,13 +4927,26 @@ public class TestModule extends UniModule {
         }
     }
 
-    private void dispatchCardEvent(String action, String data) {
+    /** 判断某个 ZIM userId / 业务会员ID 是不是我自己（两侧都剥掉 user_ 前缀再比，避免前缀差异误判） */
+    private static boolean isSelfZimId(String idOrMemberId) {
+        String bare = io.dcloud.uniplugin.memberpicker.Member.stripZimPrefix(idOrMemberId);
+        String self = io.dcloud.uniplugin.memberpicker.Member.stripZimPrefix(getLocalUserId());
+        return bare != null && !bare.isEmpty() && bare.equals(self);
+    }
+
+    /**
+     * 卡片动作分发（红包 / 商品 / 店铺 / 文章 / 社群邀请）。
+     *
+     * <p>静态：原生侧（{@link #openUserPeerChat} 等）打开聊天页后挂的卡片回调也要能落到这里，
+     * 不能再依赖 uniapp 实例上下文（红包页用 {@link #dialogContext()} 挂到栈顶 Activity）。
+     */
+    private static void dispatchCardEvent(String action, String data) {
         System.out.println("[CardBridge] dispatch action=" + action + ", cardJsCallback=" + (cardJsCallback != null));
         try {
             JSONObject payload = data == null ? new JSONObject() : JSON.parseObject(data);
             // 红包页改为原生 Activity：直接从聊天页 startActivity，返回自动回到原聊天
             if ("send_red_packet".equals(action)) {
-                RedPacketSendActivity.start(mUniSDKInstance.getContext(),
+                RedPacketSendActivity.start(dialogContext(),
                     payload.getString("conversationId"), payload.getString("conversationType"));
                 return;
             }
@@ -4949,6 +4967,21 @@ public class TestModule extends UniModule {
                     final String fSenderId = sender == null ? "" : sender.getString("userId");
                     final String fSenderName = sender == null ? "" : sender.getString("userName");
                     final String fSenderAvatar = sender == null ? "" : sender.getString("avatarUrl");
+                    // **自己发的红包**：不进领取流程（本来就领不了自己的），直接进「领取记录/详情」页（微信同款）
+                    if (isSelfZimId(fSenderId)) {
+                        android.util.Log.i("RedPacketOpen", "own packet → records page rpId=" + fRpId);
+                        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                            try {
+                                io.dcloud.uniplugin.activity.RedPacketRecordsActivity.start(
+                                    rpCtx, fRpId, fConvId, fSenderName, fSenderAvatar);
+                            } catch (Exception e) {
+                                android.util.Log.e("RedPacket", "open records fail: " + e);
+                                android.widget.Toast.makeText(rpCtx,
+                                    "打开红包详情失败：" + e.getMessage(), android.widget.Toast.LENGTH_LONG).show();
+                            }
+                        });
+                        return;
+                    }
                     android.util.Log.i("RedPacketOpen", "dispatch ctx="
                         + (rpCtx == null ? "null" : rpCtx.getClass().getName())
                         + " rpId=" + fRpId);

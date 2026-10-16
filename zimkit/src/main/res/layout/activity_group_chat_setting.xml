@@ -104,7 +104,11 @@
           android:id="@+id/group_name_value"
           android:layout_width="wrap_content"
           android:layout_height="wrap_content"
+          android:layout_marginStart="12dp"
           android:layout_marginEnd="7dp"
+          android:ellipsize="end"
+          android:maxLines="1"
+          android:maxWidth="190dp"
           android:text="群聊"
           android:textColor="@color/color_8e9093"
           android:textSize="14sp" />

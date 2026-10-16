@@ -62,7 +62,11 @@ public final class RedPacketClaimAction {
         String conversationType) {
         JSONObject params = new JSONObject();
         params.put("redPacketId", redPacketId);
-        params.put("groupId", conversationId);
+        // groupId 是**可选参数**：私聊（peer）红包不带（后端按 redPacketId 自动识别归属），
+        // 群红包才带群 ID —— 与创建接口“conversationType=peer 时 groupId 传对方会员ID”的口径区分开
+        if (!"peer".equals(conversationType)) {
+            params.put("groupId", conversationId);
+        }
         params.put("clientRequestId", "rp_draw_" + System.currentTimeMillis());
         RedPacketApi.draw(params, new RedPacketApi.Callback() {
             @Override

@@ -51,6 +51,8 @@ public class RedPacketSendActivity extends android.app.Activity {
     private String conversationId = "";
     private String conversationType = "group";
     private String currentType = "fortune"; // normal | fortune | exclusive
+    /** 私聊（PEER）红包：仅支持 type=normal + count=1，且不让选类型 */
+    private boolean isPeerChat = false;
 
     private String selectedMemberId = "";
     private String selectedMemberName = "";
@@ -99,13 +101,32 @@ public class RedPacketSendActivity extends android.app.Activity {
         conversationType = getIntent().getStringExtra("conversationType");
         if (conversationId == null) conversationId = "";
         if (conversationType == null || conversationType.isEmpty()) conversationType = "group";
+        // 私聊红包：接口只支持 type=normal 且 count=1（见创建红包接口文档）
+        isPeerChat = "peer".equals(conversationType);
+        if (isPeerChat) {
+            currentType = "normal";
+        }
 
         bindViews();
         bindEvents();
         updateTypeUI();
         updateMoney();
-        // 进入页面即拉群成员，显示“本群共 N 个人”（无需先点“发给谁”）
-        if ("group".equals(conversationType)) {
+        if (isPeerChat) {
+            // 不让选类型：整行隐藏（拼手气/专属都不出现）
+            View typeRow = findViewById(R.id.typeRow);
+            if (typeRow != null) {
+                typeRow.setVisibility(View.GONE);
+            }
+            // 份数固定 1：个数输入行隐藏
+            View countRow = findViewById(R.id.normalCountRow);
+            if (countRow != null) {
+                countRow.setVisibility(View.GONE);
+            }
+            if (normalMemberCountText != null) {
+                normalMemberCountText.setVisibility(View.GONE);
+            }
+        } else if ("group".equals(conversationType)) {
+            // 进入页面即拉群成员，显示“本群共 N 个人”（无需先点“发给谁”）
             loadMembers();
         }
     }
@@ -133,7 +154,11 @@ public class RedPacketSendActivity extends android.app.Activity {
     private void bindEvents() {
         findViewById(R.id.backBtn).setOnClickListener(v -> finish());
 
-        findViewById(R.id.typeRow).setOnClickListener(v -> showTypeDialog());
+        findViewById(R.id.typeRow).setOnClickListener(v -> {
+            if (!isPeerChat) {
+                showTypeDialog();
+            }
+        });
 
         View exclusiveRow = findViewById(R.id.exclusiveRow);
         if (exclusiveRow != null) {
@@ -272,7 +297,8 @@ public class RedPacketSendActivity extends android.app.Activity {
         try {
             if (currentType.equals("normal")) {
                 double unit = Double.parseDouble(normalAmount.getText().toString());
-                int count = parseInt(normalCount.getText().toString());
+                // 私聊红包份数固定 1（页面上不出现个数输入）
+                int count = isPeerChat ? 1 : parseInt(normalCount.getText().toString());
                 return unit * count;
             } else if (currentType.equals("fortune")) {
                 return Double.parseDouble(fortuneAmount.getText().toString());
@@ -325,8 +351,9 @@ public class RedPacketSendActivity extends android.app.Activity {
         double total;
         if (currentType.equals("normal")) {
             double unit = parseDouble(normalAmount.getText().toString());
-            count = parseInt(normalCount.getText().toString());
-            if (TextUtils.isEmpty(normalCount.getText().toString())) {
+            // 私聊红包：份数固定 1，不做“个数”校验
+            count = isPeerChat ? 1 : parseInt(normalCount.getText().toString());
+            if (!isPeerChat && TextUtils.isEmpty(normalCount.getText().toString())) {
                 showValidation("未填写【红包个数】");
                 return;
             }
@@ -334,7 +361,7 @@ public class RedPacketSendActivity extends android.app.Activity {
                 showValidation("未填写【单个积分】");
                 return;
             }
-            if (count < 1 || count > 500) {
+            if (!isPeerChat && (count < 1 || count > 500)) {
                 showValidation("红包个数需在1~500之间");
                 return;
             }
@@ -495,7 +522,7 @@ public class RedPacketSendActivity extends android.app.Activity {
         d.put("type", currentType);
         d.put("totalPoints", d.getDoubleValue("totalPoints"));
         d.put("unitPoints", currentType.equals("normal") ? parseDouble(normalAmount.getText().toString()) : 0);
-        d.put("count", currentType.equals("exclusive") ? 1 : parseInt(
+        d.put("count", (currentType.equals("exclusive") || isPeerChat) ? 1 : parseInt(
             currentType.equals("normal") ? normalCount.getText().toString() : fortuneCount.getText().toString()));
         d.put("toUserId", currentType.equals("exclusive") ? selectedMemberId : "");
         d.put("toUserName", currentType.equals("exclusive") ? selectedMemberName : "");

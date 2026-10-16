@@ -153,6 +153,10 @@ public class MemberPickerActivity extends android.app.Activity {
             confirmBtn.setVisibility(View.VISIBLE);
             pickCount.setVisibility(View.VISIBLE);
             adapter.setSelectedIds(new java.util.LinkedHashSet<>(options.defaultSelectedIds));
+            // 底部确认按钮文案（与底部弹层同口径）：如"发起群聊"
+            if (options.confirmText != null && !options.confirmText.isEmpty()) {
+                confirmBtn.setText(options.confirmText);
+            }
         }
 
         if (options.isReadOnly()) {

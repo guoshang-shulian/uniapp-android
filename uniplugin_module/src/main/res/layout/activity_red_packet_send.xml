@@ -94,6 +94,7 @@
 
             <!-- 红包个数（与拼手气一致：下方显示本群共 N 人） -->
             <LinearLayout
+                android:id="@+id/normalCountRow"
                 android:layout_width="match_parent"
                 android:layout_height="50dp"
                 android:layout_marginTop="15dp"
