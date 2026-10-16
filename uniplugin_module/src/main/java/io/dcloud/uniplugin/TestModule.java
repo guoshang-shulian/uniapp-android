@@ -1149,7 +1149,7 @@ public class TestModule extends UniModule {
         ZIMKitRouter.toMessageActivity(
             mUniSDKInstance.getContext(),
             conversationID,
-            ZIMKitConversationType.ZIMKitConversationTypePeer,productJson
+            ZIMKitConversationType.ZIMKitConversationTypePeer
         );
     }
 
@@ -2080,7 +2080,7 @@ public class TestModule extends UniModule {
       //filter
         ZIMConversationFilterOption filterOption = new ZIMConversationFilterOption();
         filterOption.conversationTypes = new ArrayList<>();
-        filterOption.conversationTypes.add(ZIMConversationType.GROUP); // Zego server filters to 1-vs-1 only
+//        filterOption.conversationTypes.add(ZIMConversationType.GROUP); // Zego server filters to 1-vs-1 only
         ArrayList<Integer> marksList = new ArrayList<>(Arrays.asList(0));
         filterOption.marks = marksList;
         ZegoSignalingPlugin.getInstance().queryConversationList(config, filterOption, (conversationList, errorInfo) -> {
@@ -2569,7 +2569,7 @@ public class TestModule extends UniModule {
                 () -> new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
                     try {
                         loadGroupConversations();
-                        loadPeerConversations();
+                      //  loadPeerConversations();
                         if (globalJsCallback != null) {
                             JSONObject eventPayload = new JSONObject();
                             eventPayload.put("event", "CONVERSATION_LIVE");
@@ -2690,7 +2690,7 @@ public class TestModule extends UniModule {
 
                     context.startActivity(intent);
                     Log.d(TAG, "ConversationActivity intent dispatched.");
-                    loadPeerConversations();
+                    //loadPeerConversations();
 
 
                 } catch (Exception callbackEx) {
@@ -3730,7 +3730,7 @@ public class TestModule extends UniModule {
     public void refreshConversations(UniJSCallback callback) {
         try {
             loadGroupConversations();
-            loadPeerConversations();
+            //loadPeerConversations();
             if (callback != null) {
                 JSONObject r = new JSONObject();
                 r.put("success", true);
@@ -3786,7 +3786,7 @@ public class TestModule extends UniModule {
                             new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
                                 try {
                                     loadGroupConversations();
-                                    loadPeerConversations();
+                                   // loadPeerConversations();
                                 } catch (Exception ignored) {
                                 }
                             });
@@ -5025,7 +5025,7 @@ public class TestModule extends UniModule {
                 @Override
                 public void newChange() {
                     System.out.println("final data here oo");
-                    loadPeerConversations();
+                  //  loadPeerConversations();
                     loadGroupConversations();
                     loadBuyerConversations();
                     loadSellerConversations();
