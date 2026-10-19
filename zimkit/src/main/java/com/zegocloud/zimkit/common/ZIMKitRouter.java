@@ -36,6 +36,11 @@ public class ZIMKitRouter {
 
         Intent intent = new Intent(context, ZIMKitMessageActivity.class);
         intent.putExtra(ZIMKitConstant.RouterConstant.KEY_BUNDLE, data);
+        // 非 Activity 上下文（极端时序：栈顶暂时为空，退回缓存/Application 上下文）必须加 NEW_TASK，
+        // 否则 startActivity 会直接抛 "Calling startActivity() from outside of an Activity context"
+        if (!(context instanceof android.app.Activity)) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        }
         context.startActivity(intent, data);
     }
 

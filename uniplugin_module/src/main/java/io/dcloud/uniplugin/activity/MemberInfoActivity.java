@@ -773,8 +773,13 @@ public class MemberInfoActivity extends android.app.Activity {
     }
 
     /**
-     * 发消息：普通用户私聊 = 2 人 ZIM 群（自动创建/复用，无需加好友）；
-     * 客服（merchant_/customer_）走 PEER 直连。与 uniapp profile.vue 的 startChat 同口径。
+     * 发消息。
+     *
+     * <ul>
+     *   <li>客服（merchant_/customer_）→ <b>保持原回调</b>（同事的客服链路，本模块不碰）；</li>
+     *   <li>普通用户 → <b>真私聊（PEER 单聊）</b>：{@code TestModule.startUserChatStatic}，
+     *       自带“目标账号未开通聊天账号”的预检提示，不再创建/复用 2 人群。</li>
+     * </ul>
      */
     private void startChat() {
         String zimId = zimUserId;
@@ -787,12 +792,17 @@ public class MemberInfoActivity extends android.app.Activity {
             return;
         }
         try {
-            // 统一交给 TestModule：客服走 PEER，普通用户走 2 人群聊（与 uniapp profile.vue 同口径）
-            memberInfoCallback.onClick(zimId);
-           // TestModule.openMemberChat(zimId);
-//            TestModule mk = new TestModule();
-//            mk.openPeerChat(zimId);
-//            TestModule.openPeerChat(zimId);
+            boolean customer = zimId.startsWith("merchant_") || zimId.startsWith("customer_");
+            if (customer) {
+                if (memberInfoCallback == null) {
+                    toast("打开聊天失败：会话回调未就绪");
+                    return;
+                }
+                memberInfoCallback.onClick(zimId);
+                return;
+            }
+            // 普通用户：本模块自己的私聊入口（与 uniapp 侧 startUserChat 同一条实现）
+            TestModule.startUserChatStatic(zimId, null);
         } catch (Exception e) {
             toast("打开聊天失败：" + e.getMessage());
         }

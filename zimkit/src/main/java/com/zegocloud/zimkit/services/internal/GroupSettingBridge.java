@@ -11,6 +11,8 @@ public class GroupSettingBridge {
         void onMemberClick(String groupId, String memberUserId);
         /** 群二维码：点击群设置里的「群二维码」栏（带当前群名，便于秒显） */
         void onQrcode(String groupId, String groupName);
+        /** 单聊设置页：点击对方头像 → 打开「个人信息」页（看资料，不是改头像） */
+        void onPeerAvatarClick(String peerUserId);
     }
 
     private static Listener sListener;
