@@ -125,6 +125,11 @@ public class RedPacketSendActivity extends android.app.Activity {
             if (normalMemberCountText != null) {
                 normalMemberCountText.setVisibility(View.GONE);
             }
+            // 份数固定 1 → 「单个积分」这个说法在私聊里别扭，改成「积分金额」（与专属红包那行同款文案）
+            TextView normalAmountLabel = findViewById(R.id.normalAmountLabel);
+            if (normalAmountLabel != null) {
+                normalAmountLabel.setText("积分金额");
+            }
         } else if ("group".equals(conversationType)) {
             // 进入页面即拉群成员，显示“本群共 N 个人”（无需先点“发给谁”）
             loadMembers();

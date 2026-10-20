@@ -66,11 +66,39 @@ public class CardMessageHolder extends MessageViewHolder {
                 cb = ZIMKitMessageActivity.getNativeDataListener();
             }
             if (cb != null) {
-                cb.onCardAction("open_card", card.payloadJson);
+                cb.onCardAction("open_card", withRealSender(card.payloadJson, customModel));
             } else {
                 System.out.println("[CardBridge] card clicked but no listener registered");
             }
         });
+    }
+
+    /**
+     * 把**消息的真实发送者**注入 payload（key: {@code msgSenderUserId}）。
+     *
+     * <p>为什么需要：payload 里的 {@code sender} 是**发送端自填**的，老版本卡片可能没有这个字段、
+     * 或字段名不同 —— 只认 payload 会导致"同一动作，老卡新卡结果不同"。
+     * ZIM 消息本身带的 {@code getSenderUserID()} 才是权威来源，用它判断"这条卡是不是我发的"。
+     */
+    private static String withRealSender(String payloadJson, ZIMKitMessageModel model) {
+        try {
+            String json = payloadJson == null || payloadJson.isEmpty() ? "{}" : payloadJson;
+            org.json.JSONObject obj = new org.json.JSONObject(json);
+            String senderId = "";
+            try {
+                if (model != null && model.getMessage() != null) {
+                    senderId = model.getMessage().getSenderUserID();
+                }
+            } catch (Exception ignored) {
+            }
+            if (!TextUtils.isEmpty(senderId)) {
+                obj.put("msgSenderUserId", senderId);
+            }
+            return obj.toString();
+        } catch (Exception e) {
+            // 解析失败就原样返回（调用方还有 payload.sender 兜底）
+            return payloadJson;
+        }
     }
 
     /** 社群邀请：现代弹窗确认 → 直接调接口申请/加入（不再跳转 uniapp 页面） */

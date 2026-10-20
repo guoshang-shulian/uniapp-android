@@ -4237,6 +4237,77 @@ public class TestModule extends UniModule {
             });
     }
 
+    /**
+     * 红点用（**只要"有没有待处理"，不统计数量**）：
+     * · {@code friendPending} = 我收到的、state=WAITING 的好友申请是否存在
+     * · {@code groupPending}  = 我收到的、type=JOIN 且 state=WAITING 的入群申请是否存在（排除自己发起的）
+     *
+     * <p>只查**第一页**（count=100）且不翻页：红点只判断"有/无"，最近的申请一定在第一页，
+     * 比 {@link #queryGroupApplications} 全量翻页轻得多（1 次往返 vs N 次）。
+     */
+    @UniJSMethod(uiThread = true)
+    public void queryPendingApplicationFlags(UniJSCallback callback) {
+        try {
+            final String selfZim = normalizeUserZimId(getLocalUserId());
+            final JSONObject result = new JSONObject();
+            ZIMFriendApplicationListQueryConfig friendCfg = new ZIMFriendApplicationListQueryConfig();
+            friendCfg.count = 100;
+            zimInstance().queryFriendApplicationList(friendCfg, (list, nf, err) -> {
+                boolean friendPending = false;
+                if (err != null && err.code == ZIMErrorCode.SUCCESS && list != null) {
+                    for (ZIMFriendApplicationInfo a : list) {
+                        if (a == null) {
+                            continue;
+                        }
+                        String type = a.type == null ? "" : a.type.name();
+                        String state = a.state == null ? "" : a.state.name();
+                        // 我收到的：RECEIVED / BOTH；双方互相申请过时 ZIM 给 BOTH
+                        boolean incoming = type.isEmpty() || "RECEIVED".equals(type) || "BOTH".equals(type);
+                        if (incoming && (state.isEmpty() || "WAITING".equals(state))) {
+                            friendPending = true;
+                            break;
+                        }
+                    }
+                }
+                final boolean fPending = friendPending;
+                im.zego.zim.entity.ZIMGroupApplicationListQueryConfig groupCfg =
+                    new im.zego.zim.entity.ZIMGroupApplicationListQueryConfig();
+                groupCfg.count = 100;
+                groupCfg.nextFlag = 0;
+                zimInstance().queryGroupApplicationList(groupCfg, (gList, gNext, gErr) -> {
+                    boolean groupPending = false;
+                    if (gErr != null && gErr.code == ZIMErrorCode.SUCCESS && gList != null) {
+                        for (im.zego.zim.entity.ZIMGroupApplicationInfo a : gList) {
+                            if (a == null) {
+                                continue;
+                            }
+                            String type = a.type == null ? "" : a.type.name();
+                            String state = a.state == null ? "" : a.state.name();
+                            boolean mine = a.applyUser != null && !selfZim.isEmpty()
+                                && selfZim.equals(a.applyUser.userID);
+                            if ("JOIN".equals(type) && (state.isEmpty() || "WAITING".equals(state))
+                                && !mine) {
+                                groupPending = true;
+                                break;
+                            }
+                        }
+                    }
+                    try {
+                        result.put("success", true);
+                        result.put("friendPending", fPending);
+                        result.put("groupPending", groupPending);
+                    } catch (Exception ignored) {
+                    }
+                    if (callback != null) {
+                        callback.invoke(result);
+                    }
+                });
+            });
+        } catch (Exception e) {
+            invokeFail(callback, e);
+        }
+    }
+
     /** 群全员禁言/解除禁言 */
     @UniJSMethod(uiThread = true)
     public void setGroupMuteAll(String groupId, boolean mute, UniJSCallback callback) {
@@ -4967,9 +5038,19 @@ public class TestModule extends UniModule {
                     final String fSenderId = sender == null ? "" : sender.getString("userId");
                     final String fSenderName = sender == null ? "" : sender.getString("userName");
                     final String fSenderAvatar = sender == null ? "" : sender.getString("avatarUrl");
-                    // **自己发的红包**：不进领取流程（本来就领不了自己的），直接进「领取记录/详情」页（微信同款）
-                    if (isSelfZimId(fSenderId)) {
-                        android.util.Log.i("RedPacketOpen", "own packet → records page rpId=" + fRpId);
+                    // 权威发送者：ZIM 消息真实 sender（zimkit 点击卡片时注入）；
+                    // 老卡片没有这个字段 → 回退 payload 里的 sender.userId
+                    final String fMsgSenderId = payload.getString("msgSenderUserId");
+                    final String ownerId = (fMsgSenderId == null || fMsgSenderId.isEmpty())
+                        ? fSenderId : fMsgSenderId;
+                    // **只有私聊**：自己发的红包自己不能领 → 直接进「领取记录/详情」页（微信语义）。
+                    // **群聊**：自己发的红包**可以自己领**（业务允许）→ 照常走领取弹窗，不能拦。
+                    // 老卡片没有 conversationType 时用会话ID兜底（PEER 会话ID 一律是 user_ 开头）。
+                    final boolean isPeerConv = "peer".equalsIgnoreCase(fConvType)
+                        || ((fConvType == null || fConvType.isEmpty())
+                            && fConvId != null && fConvId.startsWith("user_"));
+                    if (isPeerConv && isSelfZimId(ownerId)) {
+                        android.util.Log.i("RedPacketOpen", "own packet(peer) → records page rpId=" + fRpId);
                         new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
                             try {
                                 io.dcloud.uniplugin.activity.RedPacketRecordsActivity.start(
