@@ -3572,6 +3572,73 @@ public class TestModule extends UniModule {
         }
     }
 
+    /**
+     * 临时群退群后清理后端：POST /buyer/social/temp-group/leave { groupId }
+     *
+     * <p>为什么需要：临时群建群时会 `POST /social/temp-group/register` 在后端登记，
+     * 但 ZIM 的退群只改「群成员关系」→ 不通知后端就会留下"人已退群、后端还认为在群里"的脏数据。
+     * 失败只记日志，**不影响前端退出结果**（前端该退的已经退了）。
+     */
+    private static void leaveTempGroupOnBackend(String groupId) {
+        try {
+            if (groupId == null || groupId.isEmpty()) {
+                return;
+            }
+            JSONObject body = new JSONObject();
+            body.put("groupId", groupId);
+            android.util.Log.i("TempGroupLeave", "leave gid=" + groupId);
+            io.dcloud.uniplugin.others.RedPacketApi.post(
+                getBusinessBaseUrl() + "/social/temp-group/leave", body,
+                new io.dcloud.uniplugin.others.RedPacketApi.Callback() {
+                    @Override
+                    public void onSuccess(JSONObject result) {
+                        android.util.Log.i("TempGroupLeave", "ok gid=" + groupId);
+                    }
+
+                    @Override
+                    public void onError(int code, String message) {
+                        android.util.Log.w("TempGroupLeave", "fail gid=" + groupId
+                            + " code=" + code + " msg=" + message);
+                    }
+                });
+        } catch (Exception e) {
+            android.util.Log.w("TempGroupLeave", "exception gid=" + groupId + " err=" + e);
+        }
+    }
+
+    /** 包装退出回调：退出成功且是**临时群**时，补一次后端 /social/temp-group/leave */
+    private static UniJSCallback withTempGroupLeave(final String groupId, final boolean isTemp,
+        final UniJSCallback inner) {
+        return new UniJSCallback() {
+            private void after(Object data) {
+                try {
+                    boolean ok = data instanceof JSONObject
+                        && ((JSONObject) data).getBooleanValue("success");
+                    if (ok && isTemp) {
+                        leaveTempGroupOnBackend(groupId);
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+
+            @Override
+            public void invoke(Object data) {
+                after(data);
+                if (inner != null) {
+                    inner.invoke(data);
+                }
+            }
+
+            @Override
+            public void invokeAndKeepAlive(Object data) {
+                after(data);
+                if (inner != null) {
+                    inner.invokeAndKeepAlive(data);
+                }
+            }
+        };
+    }
+
     /** 退出群聊：群主 → 转让（管理员→最早加入→随机）再退出；普通成员直接退出 */
     private void exitGroupSmart(String groupId, UniJSCallback callback) {
         try {
@@ -3582,6 +3649,8 @@ public class TestModule extends UniModule {
             zimInstance().queryGroupAllAttributes(gid, (g, attrs, e) -> {
                 boolean isCommunity = attrs != null && "community".equals(attrs.get("bizType"));
                 String bizType = attrs == null ? "(attrs null)" : String.valueOf(attrs.get("bizType"));
+                // 临时群：退群成功后要补后端 /social/temp-group/leave（建群时登记过）
+                final boolean isTemp = "temp".equals(bizType);
                 fetchAllGroupMembers(gid, new ArrayList<ZIMGroupMemberInfo>(), 0, members -> {
                     int count = members == null ? 0 : members.size();
                     // 先算「我是不是群主」——解散分支也要用它做保险（见下）
@@ -3619,7 +3688,7 @@ public class TestModule extends UniModule {
                         if (!owner) {
                             android.util.Log.w("ExitGroup", "gid=" + gid
                                 + " memberCount<=1 但我不是群主 → 不允许解散，走普通退群");
-                            leaveGroupOnly(gid, callback);
+                            leaveGroupOnly(gid, withTempGroupLeave(gid, isTemp, callback));
                             return;
                         }
                         zimInstance().dismissGroup(gid, (gid2, e2) -> {
@@ -3628,6 +3697,10 @@ public class TestModule extends UniModule {
                             if (ok) {
                                 // 只有真解散成功才删本地会话
                                 deleteConversationQuiet(gid2, ZIMConversationType.GROUP);
+                                // 临时群：后端也登记着这个群，退群后补一次 leave 清理
+                                if (isTemp) {
+                                    leaveTempGroupOnBackend(gid2);
+                                }
                                 result.put("success", true);
                                 result.put("message", "已解散群聊");
                             } else if (isGroupGone(e2)) {
@@ -3656,6 +3729,9 @@ public class TestModule extends UniModule {
                             @Override
                             public void invokeAndKeepAlive(Object data) {
                                 deleteConversationQuiet(gid, ZIMConversationType.GROUP);
+                                if (isTemp) {
+                                    leaveTempGroupOnBackend(gid);
+                                }
                                 if (callback != null) {
                                     callback.invokeAndKeepAlive(data);
                                 }
@@ -3664,6 +3740,9 @@ public class TestModule extends UniModule {
                             @Override
                             public void invoke(Object data) {
                                 deleteConversationQuiet(gid, ZIMConversationType.GROUP);
+                                if (isTemp) {
+                                    leaveTempGroupOnBackend(gid);
+                                }
                                 if (callback != null) {
                                     callback.invoke(data);
                                 }
@@ -3671,7 +3750,7 @@ public class TestModule extends UniModule {
                         });
                     } else {
                         android.util.Log.i("ExitGroup", "gid=" + gid + " → 走【直接退群 leaveGroupOnly】(owner=false)");
-                        leaveGroupOnly(gid, callback);
+                        leaveGroupOnly(gid, withTempGroupLeave(gid, isTemp, callback));
                     }
                 });
             });
